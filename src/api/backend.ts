@@ -57,6 +57,27 @@ export interface LeaderboardEntry {
   routeCount: number;
 }
 
+export interface PrivacySettings {
+  shareZones: boolean;
+  shareRides: boolean;
+}
+
+export interface FriendActivity {
+  id: number;
+  name: string;
+  distance: number;
+  moving_time: number;
+  total_elevation_gain: number;
+  sport_type: string;
+  type: string;
+  start_date_local: string;
+  start_latlng: [number, number] | null;
+  map: { summary_polyline: string };
+  qualifying: boolean;
+  userId: number;
+  ownerName: string;
+}
+
 async function apiFetch<T>(path: string, jwt: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
@@ -122,10 +143,33 @@ export async function getLeaderboard(jwt: string): Promise<LeaderboardEntry[]> {
   return apiFetch<LeaderboardEntry[]>('/leaderboard', jwt);
 }
 
+export async function getFriendsLeaderboard(jwt: string): Promise<LeaderboardEntry[]> {
+  return apiFetch<LeaderboardEntry[]>('/leaderboard/friends', jwt);
+}
+
 export async function deleteAccount(jwt: string): Promise<void> {
   await apiFetch<void>('/auth/account', jwt, { method: 'DELETE' });
 }
 
 export async function exportMyData(jwt: string): Promise<object> {
   return apiFetch<object>('/auth/export', jwt);
+}
+
+export async function getFriendsTerritories(jwt: string): Promise<TerritoryData[]> {
+  return apiFetch<TerritoryData[]>('/territories/friends', jwt);
+}
+
+export async function getPrivacySettings(jwt: string): Promise<PrivacySettings> {
+  return apiFetch<PrivacySettings>('/user/me/privacy', jwt);
+}
+
+export async function updatePrivacySettings(jwt: string, settings: Partial<PrivacySettings>): Promise<void> {
+  await apiFetch<{ ok: boolean }>('/user/me/privacy', jwt, {
+    method: 'PATCH',
+    body: JSON.stringify(settings),
+  });
+}
+
+export async function getFriendsActivities(jwt: string): Promise<FriendActivity[]> {
+  return apiFetch<FriendActivity[]>('/activities/friends', jwt);
 }

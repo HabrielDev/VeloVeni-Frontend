@@ -1,12 +1,13 @@
-import { useMemo, useState } from 'react';
-import { Avatar, Button, Card, CardBody, Chip, Divider, Spinner } from '@heroui/react';
+import { useEffect, useMemo, useState } from 'react';
+import { Avatar, Button, Card, CardBody, Chip, Divider, Spinner, Switch } from '@heroui/react';
 import {
   Bike, Ruler, Clock, TrendingUp, Trophy, Map, RefreshCw,
-  LogOut, Download, Trash2, ShieldCheck, ExternalLink,
+  LogOut, Download, Trash2, ShieldCheck, ExternalLink, Shield,
 } from 'lucide-react';
 import { getAuthUrl } from '@/api/strava';
 import { useStrava } from '@/features/auth/strava-context';
-import { deleteAccount, exportMyData } from '@/api/backend';
+import { deleteAccount, exportMyData, getPrivacySettings, updatePrivacySettings } from '@/api/backend';
+import type { PrivacySettings } from '@/api/backend';
 import { checkQualifying, getConqueredTiles, decodePolyline, TILE_AREA_KM2 } from '@/utils/geo';
 
 function fmtDistance(m: number) {
@@ -22,6 +23,8 @@ export default function ProfilePage() {
   const { jwtToken, token, activities, activitiesLoading, syncActivities, disconnect } = useStrava();
   const [exporting, setExporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [privacy, setPrivacy] = useState<PrivacySettings>({ shareZones: true, shareRides: false });
+  const [privacyLoading, setPrivacyLoading] = useState(false);
 
   const qualifying = useMemo(
     () => activities.filter((a) => a.qualifying ?? checkQualifying(a).qualifying),
@@ -38,6 +41,11 @@ export default function ProfilePage() {
     return tiles.size;
   }, [qualifying]);
 
+  useEffect(() => {
+    if (!jwtToken) return;
+    getPrivacySettings(jwtToken).then(setPrivacy).catch(() => {});
+  }, [jwtToken]);
+
   const stats = useMemo(() => ({
     totalActivities: activities.length,
     qualifyingCount: qualifying.length,
@@ -51,6 +59,20 @@ export default function ProfilePage() {
     uniqueTiles,
     areaKm2: uniqueTiles * TILE_AREA_KM2,
   }), [activities, qualifying, uniqueTiles]);
+
+  const handlePrivacyChange = async (key: keyof PrivacySettings, value: boolean) => {
+    if (!jwtToken) return;
+    const updated = { ...privacy, [key]: value };
+    setPrivacy(updated);
+    setPrivacyLoading(true);
+    try {
+      await updatePrivacySettings(jwtToken, { [key]: value });
+    } catch {
+      setPrivacy(privacy); // revert on error
+    } finally {
+      setPrivacyLoading(false);
+    }
+  };
 
   const handleExport = async () => {
     if (!jwtToken) return;
@@ -204,6 +226,48 @@ export default function ProfilePage() {
             ].map((c) => (
               <p key={c} className="text-sm text-default-600">{c}</p>
             ))}
+          </CardBody>
+        </Card>
+      </div>
+
+      {/* ── Privacy settings ──────────────────────────────────────────── */}
+      <div>
+        <h2 className="text-sm font-bold uppercase tracking-wider text-default-400 mb-3 flex items-center gap-2">
+          <Shield size={14} /> Sichtbarkeit & Teilen
+        </h2>
+        <Card>
+          <CardBody className="p-4 flex flex-col gap-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <p className="text-sm font-medium">Zonen teilen</p>
+                <p className="text-xs text-default-400 mt-0.5 leading-relaxed">
+                  Andere Spieler können deine eroberten Gebiete auf der Karte sehen.
+                </p>
+              </div>
+              <Switch
+                isSelected={privacy.shareZones}
+                onValueChange={(v) => handlePrivacyChange('shareZones', v)}
+                isDisabled={privacyLoading}
+                size="sm"
+                color="warning"
+              />
+            </div>
+            <Divider />
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <p className="text-sm font-medium">Fahrten teilen</p>
+                <p className="text-xs text-default-400 mt-0.5 leading-relaxed">
+                  Strava-Freunde können deine Fahrrouten auf der Karte im Freunde-Modus sehen.
+                </p>
+              </div>
+              <Switch
+                isSelected={privacy.shareRides}
+                onValueChange={(v) => handlePrivacyChange('shareRides', v)}
+                isDisabled={privacyLoading}
+                size="sm"
+                color="primary"
+              />
+            </div>
           </CardBody>
         </Card>
       </div>

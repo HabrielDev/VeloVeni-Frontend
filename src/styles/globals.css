@@ -120,3 +120,31 @@ body.dark {
 .transition-theme {
   transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease;
 }
+
+/* ── Bike pedal animation ─────────────────────────────────────────────────── */
+@keyframes bike-wheel-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes bike-bounce {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-2.5px); }
+}
+
+.bike-pedal {
+  display: inline-flex;
+}
+
+/* Each wheel group spins around its own center */
+.bike-pedal .bike-wheel {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.bike-pedal:hover .bike-wheel {
+  animation: bike-wheel-spin 1.2s linear infinite;
+}
+
+.bike-pedal:hover {
+  animation: bike-bounce 0.45s ease-in-out infinite;
+}

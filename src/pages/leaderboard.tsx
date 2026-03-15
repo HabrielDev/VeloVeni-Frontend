@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Avatar, Card, CardBody, Chip, Spinner } from '@heroui/react';
-import { Trophy, Map, Route, Ruler } from 'lucide-react';
+import { Trophy, Map, Route, Ruler, Globe, Users } from 'lucide-react';
 import { useStrava } from '@/features/auth/strava-context';
-import { getLeaderboard } from '@/api/backend';
+import { getLeaderboard, getFriendsLeaderboard } from '@/api/backend';
 import type { LeaderboardEntry } from '@/api/backend';
 import { getAuthUrl } from '@/api/strava';
 import { Button } from '@heroui/react';
+
+type LeaderboardMode = 'global' | 'friends';
 
 const MEDAL: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' };
 
 export default function LeaderboardPage() {
   const { jwtToken, token } = useStrava();
+  const [mode, setMode] = useState<LeaderboardMode>('global');
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,11 +22,13 @@ export default function LeaderboardPage() {
     if (!jwtToken) return;
     setLoading(true);
     setError(null);
-    getLeaderboard(jwtToken)
+    setEntries([]);
+    const fetch = mode === 'friends' ? getFriendsLeaderboard : getLeaderboard;
+    fetch(jwtToken)
       .then(setEntries)
       .catch(() => setError('Leaderboard konnte nicht geladen werden.'))
       .finally(() => setLoading(false));
-  }, [jwtToken]);
+  }, [jwtToken, mode]);
 
   if (!jwtToken) {
     return (
@@ -48,11 +53,33 @@ export default function LeaderboardPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">
-          Leader<span className="text-primary">board</span>
-        </h1>
-        <p className="text-sm text-default-400 mt-0.5">Rangliste nach eroberten Feldern</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Leader<span className="text-primary">board</span>
+          </h1>
+          <p className="text-sm text-default-400 mt-0.5">Rangliste nach eroberten Feldern</p>
+        </div>
+
+        {/* Mode toggle */}
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-content2 border border-divider">
+          {([
+            { key: 'global',  label: 'Deutschlandweit', icon: <Globe size={14} /> },
+            { key: 'friends', label: 'Freunde',          icon: <Users size={14} /> },
+          ] as const).map(({ key, label, icon }) => (
+            <button
+              key={key}
+              onClick={() => setMode(key)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                mode === key
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-default-500 hover:text-default-700'
+              }`}
+            >
+              {icon}{label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading && (
@@ -70,8 +97,15 @@ export default function LeaderboardPage() {
       {!loading && !error && entries.length === 0 && (
         <Card>
           <CardBody className="p-10 text-center flex flex-col items-center gap-3">
-            <Trophy size={36} className="text-default-300" />
-            <p className="text-sm text-default-400">Noch keine Einträge vorhanden.</p>
+            {mode === 'friends' ? <Users size={36} className="text-default-300" /> : <Trophy size={36} className="text-default-300" />}
+            <p className="text-sm font-medium">
+              {mode === 'friends' ? 'Keine Strava-Freunde bei VeloVeni' : 'Noch keine Einträge vorhanden.'}
+            </p>
+            {mode === 'friends' && (
+              <p className="text-xs text-default-400 max-w-xs">
+                Nur Strava-Freunde, die ebenfalls VeloVeni nutzen, erscheinen hier.
+              </p>
+            )}
           </CardBody>
         </Card>
       )}

@@ -15,7 +15,7 @@ function App() {
       <StravaProvider>
         <NavigationBar />
         <ConsentBanner />
-        <main>
+        <main className="pb-14 md:pb-0">
           <Routes>
             <Route element={<MapsPage />} path="/maps" />
             <Route element={<RidesPage />} path="/rides" />

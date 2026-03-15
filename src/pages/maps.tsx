@@ -8,12 +8,12 @@ import { Button, Spinner, ScrollShadow, Avatar, Switch } from '@heroui/react';
 import {
   Bike, Activity, Clock, TrendingUp, RefreshCw,
   LogOut, Layers, Ruler, Map, Trophy,
-  Eye, EyeOff, Route, Rows3,
+  Eye, EyeOff, Route, Rows3, Search, SortDesc, SortAsc, Menu, X,
 } from 'lucide-react';
 import { getAuthUrl } from '@/api/strava';
 import { useStrava } from '@/features/auth/strava-context';
-import { getAllTerritories, getTileCrossings, recalculateTerritories } from '@/api/backend';
-import type { TerritoryData, TileCrossingEntry } from '@/api/backend';
+import { getAllTerritories, getTileCrossings, recalculateTerritories, getFriendsTerritories, getFriendsActivities } from '@/api/backend';
+import type { TerritoryData, TileCrossingEntry, FriendActivity } from '@/api/backend';
 import type { StravaActivity } from '@/api/strava';
 import {
   GERMANY_CENTER, GERMANY_BOUNDS, GERMANY_MAP_BOUNDS,
@@ -216,28 +216,43 @@ export default function MapsPage() {
   const [tileKey, setTileKey] = useState<TileKey>('street');
   const [showTerritories, setShowTerritories] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('all');
+
+  // Sidebar route filters
+  const [routeSearch, setRouteSearch] = useState('');
+  const [routeTypeFilter, setRouteTypeFilter] = useState<'qualifying' | 'cycling' | 'running' | 'all'>('qualifying');
+  const [routeSortField, setRouteSortField] = useState<'date' | 'distance' | 'elevation'>('date');
+  const [routeSortDir, setRouteSortDir] = useState<'desc' | 'asc'>('desc');
   const [allTerritories, setAllTerritories] = useState<TerritoryData[]>([]);
   const [tileCrossings, setTileCrossings] = useState<Record<string, TileCrossingEntry[]>>({});
   const [recalcLoading, setRecalcLoading] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [zoneMode, setZoneMode] = useState<'global' | 'friends'>('global');
+  const [friendActivities, setFriendActivities] = useState<FriendActivity[]>([]);
   const tile = TILE_LAYERS[tileKey];
 
-  const reloadMapData = (jwt: string) => {
-    getAllTerritories(jwt).then(setAllTerritories).catch(() => {});
+  const reloadMapData = (jwt: string, mode: 'global' | 'friends') => {
+    const territoriesFn = mode === 'friends' ? getFriendsTerritories : getAllTerritories;
+    territoriesFn(jwt).then(setAllTerritories).catch(() => {});
     getTileCrossings(jwt).then(setTileCrossings).catch(() => {});
+    if (mode === 'friends') {
+      getFriendsActivities(jwt).then(setFriendActivities).catch(() => {});
+    } else {
+      setFriendActivities([]);
+    }
   };
 
   // Load all users' territories and crossing counts for the map
   useEffect(() => {
     if (!jwtToken) return;
-    reloadMapData(jwtToken);
-  }, [jwtToken]);
+    reloadMapData(jwtToken, zoneMode);
+  }, [jwtToken, zoneMode]);
 
   const handleRecalculate = async () => {
     if (!jwtToken) return;
     setRecalcLoading(true);
     try {
       await recalculateTerritories(jwtToken);
-      reloadMapData(jwtToken);
+      reloadMapData(jwtToken, zoneMode);
     } finally {
       setRecalcLoading(false);
     }
@@ -290,12 +305,37 @@ export default function MapsPage() {
     areaKm2: allTiles.length * TILE_AREA_KM2,
   }), [qualifyingActivities, allTiles]);
 
-  // Which routes to render based on view mode
+  // Sidebar-filtered activity list (applies search + type + sort)
+  const RUN_TYPES = ['Run', 'VirtualRun', 'TrailRun'];
+  const sidebarFilteredActivities = useMemo(() => {
+    let list = activities.filter((a) => a.map?.summary_polyline);
+    if (routeTypeFilter === 'qualifying') list = list.filter((a) => a.qualifying ?? checkQualifying(a).qualifying);
+    else if (routeTypeFilter === 'cycling') list = list.filter((a) => CYCLING_TYPES.includes(a.sport_type ?? a.type));
+    else if (routeTypeFilter === 'running') list = list.filter((a) => RUN_TYPES.includes(a.sport_type ?? a.type));
+    if (routeSearch.trim()) {
+      const q = routeSearch.toLowerCase();
+      list = list.filter((a) => a.name.toLowerCase().includes(q));
+    }
+    return [...list].sort((a, b) => {
+      let va = 0, vb = 0;
+      if (routeSortField === 'date') { va = new Date(a.start_date_local).getTime(); vb = new Date(b.start_date_local).getTime(); }
+      else if (routeSortField === 'distance') { va = a.distance; vb = b.distance; }
+      else if (routeSortField === 'elevation') { va = a.total_elevation_gain; vb = b.total_elevation_gain; }
+      return routeSortDir === 'desc' ? vb - va : va - vb;
+    });
+  }, [activities, routeTypeFilter, routeSearch, routeSortField, routeSortDir]);
+
+  const sidebarFilteredRoutes = useMemo(
+    () => sidebarFilteredActivities.map((a) => ({ id: a.id, activity: a, positions: decodePolyline(a.map.summary_polyline) })),
+    [sidebarFilteredActivities],
+  );
+
+  // Which routes to render on map based on view mode + sidebar filter
   const visibleRoutes = useMemo(() => {
     if (viewMode === 'none') return [];
-    if (viewMode === 'single') return activeActivityId ? allRoutes.filter((r) => r.id === activeActivityId) : [];
-    return allRoutes;
-  }, [viewMode, allRoutes, activeActivityId]);
+    if (viewMode === 'single') return activeActivityId ? sidebarFilteredRoutes.filter((r) => r.id === activeActivityId) : [];
+    return sidebarFilteredRoutes;
+  }, [viewMode, sidebarFilteredRoutes, activeActivityId]);
 
   const VIEW_MODES: { key: ViewMode; label: string; icon: React.ReactNode }[] = [
     { key: 'all', label: 'Alle', icon: <Rows3 size={13} /> },
@@ -304,9 +344,17 @@ export default function MapsPage() {
   ];
 
   return (
-    <div className="flex h-[calc(100vh-64px)]">
+    <div className="flex h-[calc(100dvh-64px-56px)] md:h-[calc(100dvh-64px)] relative">
       {/* ── Map ────────────────────────────────────────────────────────────── */}
-      <div className="flex-1 p-4 min-w-0">
+      <div className="flex-1 p-2 md:p-4 min-w-0 relative">
+
+        {/* Mobile: floating sidebar toggle button */}
+        <button
+          className="absolute top-4 right-4 z-[600] md:hidden bg-primary text-primary-foreground rounded-full p-3 shadow-lg"
+          onClick={() => setMobileSidebarOpen(true)}
+        >
+          <Menu size={20} />
+        </button>
         <div className="relative h-full w-full rounded-2xl overflow-hidden border-2 border-divider shadow-lg">
 
           <MapContainer
@@ -364,6 +412,21 @@ export default function MapsPage() {
               />
             ))}
 
+            {/* Friend activity routes — shown when in friends mode */}
+            {zoneMode === 'friends' && friendActivities.map((fa) => {
+              const positions = fa.map?.summary_polyline ? decodePolyline(fa.map.summary_polyline) : [];
+              if (positions.length === 0) return null;
+              return (
+                <Polyline
+                  key={`friend-${fa.id}`}
+                  positions={positions}
+                  color="#2563EB"
+                  weight={2}
+                  opacity={0.5}
+                />
+              );
+            })}
+
             {/* Routes with hover popup — only when territories are hidden */}
             {visibleRoutes.map((r) => (
               <HoverablePolyline
@@ -388,8 +451,30 @@ export default function MapsPage() {
         </div>
       </div>
 
+      {/* Mobile backdrop */}
+      {mobileSidebarOpen && (
+        <div
+          className="fixed inset-0 z-[400] bg-black/40 md:hidden"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
+
       {/* ── Sidebar ──────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col w-80 border-l border-divider bg-content1/95 backdrop-blur-sm shrink-0">
+      <div className={`
+        flex flex-col border-l border-divider bg-content1/95 backdrop-blur-sm shrink-0
+        md:relative md:w-80 md:translate-x-0
+        fixed right-0 top-16 bottom-14 z-[500] w-80 max-w-[85vw]
+        transition-transform duration-200 ease-in-out
+        ${mobileSidebarOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
+      `}>
+
+        {/* Mobile close button */}
+        <div className="flex items-center justify-between px-3 py-2 border-b border-divider md:hidden shrink-0">
+          <span className="font-bold text-sm">Navigation</span>
+          <Button isIconOnly size="sm" variant="light" onPress={() => setMobileSidebarOpen(false)}>
+            <X size={16} />
+          </Button>
+        </div>
 
         {/* Tab buttons */}
         <div className="flex shrink-0 border-b border-divider">
@@ -408,13 +493,35 @@ export default function MapsPage() {
           ))}
         </div>
 
-        {/* Persistent zones toggle */}
-        <div className="flex items-center justify-between px-3 py-2 border-b border-divider shrink-0">
-          <div className="flex items-center gap-2 text-xs font-medium text-default-600">
-            {showTerritories ? <Eye size={13} className="text-[#FC4C02]" /> : <EyeOff size={13} />}
-            Zonen anzeigen
+        {/* Persistent zones toggle + mode */}
+        <div className="flex flex-col border-b border-divider shrink-0">
+          <div className="flex items-center justify-between px-3 py-2">
+            <div className="flex items-center gap-2 text-xs font-medium text-default-600">
+              {showTerritories ? <Eye size={13} className="text-[#FC4C02]" /> : <EyeOff size={13} />}
+              Zonen anzeigen
+            </div>
+            <Switch isSelected={showTerritories} onValueChange={setShowTerritories} size="sm" color="warning" />
           </div>
-          <Switch isSelected={showTerritories} onValueChange={setShowTerritories} size="sm" color="warning" />
+          {showTerritories && (
+            <div className="flex px-3 pb-2 gap-1">
+              {([
+                { key: 'global', label: 'Deutschlandweit' },
+                { key: 'friends', label: 'Freunde' },
+              ] as const).map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setZoneMode(key)}
+                  className={`flex-1 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
+                    zoneMode === key
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-content2 text-default-500 hover:bg-content3'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* ── Tab: Routen ──────────────────────────────────────────────────── */}
@@ -467,6 +574,77 @@ export default function MapsPage() {
                   </div>
                 )}
 
+                {/* ── Filter controls ─────────────────────────────────── */}
+                {activities.length > 0 && (
+                  <div className="flex flex-col gap-2 shrink-0 p-2 rounded-xl bg-content2/60 border border-divider">
+
+                    {/* Search */}
+                    <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-content1 border border-divider">
+                      <Search size={12} className="text-default-400 shrink-0" />
+                      <input
+                        value={routeSearch}
+                        onChange={(e) => setRouteSearch(e.target.value)}
+                        placeholder="Fahrt suchen…"
+                        className="flex-1 text-xs bg-transparent outline-none placeholder:text-default-400 min-w-0"
+                      />
+                      {routeSearch && (
+                        <button onClick={() => setRouteSearch('')} className="text-default-400 hover:text-default-600 shrink-0">
+                          ×
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Type filter */}
+                    <div className="flex gap-1">
+                      {([
+                        { key: 'qualifying', label: 'Spielwürdig' },
+                        { key: 'cycling',    label: 'Rad' },
+                        { key: 'running',    label: 'Lauf' },
+                        { key: 'all',        label: 'Alle' },
+                      ] as const).map(({ key, label }) => (
+                        <button
+                          key={key}
+                          onClick={() => setRouteTypeFilter(key)}
+                          className={`flex-1 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
+                            routeTypeFilter === key
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-content1 text-default-500 hover:bg-content3'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Sort */}
+                    <div className="flex gap-1 items-center">
+                      {([
+                        { key: 'date',      label: 'Datum' },
+                        { key: 'distance',  label: 'Distanz' },
+                        { key: 'elevation', label: 'Höhe' },
+                      ] as const).map(({ key, label }) => (
+                        <button
+                          key={key}
+                          onClick={() => {
+                            if (routeSortField === key) setRouteSortDir((d) => d === 'desc' ? 'asc' : 'desc');
+                            else { setRouteSortField(key); setRouteSortDir('desc'); }
+                          }}
+                          className={`flex-1 flex items-center justify-center gap-0.5 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
+                            routeSortField === key
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-content1 text-default-500 hover:bg-content3'
+                          }`}
+                        >
+                          {label}
+                          {routeSortField === key && (
+                            routeSortDir === 'desc' ? <SortDesc size={10} /> : <SortAsc size={10} />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between shrink-0">
                   {activities.length === 0 ? (
                     <Button size="sm" variant="flat" onPress={syncActivities} isLoading={activitiesLoading}
@@ -476,7 +654,7 @@ export default function MapsPage() {
                   ) : (
                     <>
                       <span className="text-xs text-default-400">
-                        {activities.length} Aktivitäten · <span className="text-success">{qualifyingActivities.length} qualifiziert</span>
+                        {sidebarFilteredActivities.length} von {activities.length}
                       </span>
                       <Button isIconOnly size="sm" variant="light" onPress={syncActivities} isLoading={activitiesLoading}>
                         {!activitiesLoading && <RefreshCw size={14} />}
@@ -490,7 +668,7 @@ export default function MapsPage() {
                     {activitiesLoading && activities.length === 0 ? (
                       <div className="flex justify-center py-10"><Spinner size="sm" /></div>
                     ) : (
-                      qualifyingActivities.map((a) => (
+                      sidebarFilteredActivities.map((a) => (
                         <ActivityItem
                           key={a.id} activity={a}
                           isActive={activeActivityId === a.id}

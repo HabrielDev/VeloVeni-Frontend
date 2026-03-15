@@ -116,13 +116,13 @@ function ActivityModal({ activity, onClose }: { activity: StravaActivity; onClos
 
   return (
     <div
-      className="fixed inset-0 z-[2000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-[2000] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4"
       onClick={handleBackdrop}
     >
-      <div className="bg-content1 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-content1 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-6xl h-[95dvh] sm:max-h-[94vh] sm:h-auto flex flex-col overflow-hidden">
 
         {/* Header */}
-        <div className="flex items-start justify-between p-5 border-b border-divider shrink-0">
+        <div className="flex items-start justify-between p-4 sm:p-5 border-b border-divider shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <div className={`p-2 rounded-xl shrink-0 ${isCycling ? 'bg-[#FC4C02]/10 text-[#FC4C02]' : 'bg-default-100 text-default-500'}`}>
               {isCycling ? <Bike size={20} /> : <Activity size={20} />}
@@ -133,7 +133,7 @@ function ActivityModal({ activity, onClose }: { activity: StravaActivity; onClos
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0 ml-3">
-            <Chip size="sm" variant="flat" color={isCycling ? 'warning' : 'default'}>
+            <Chip size="sm" variant="flat" color={isCycling ? 'warning' : 'default'} className="hidden sm:flex">
               {activity.sport_type ?? activity.type}
             </Chip>
             <Chip size="sm" variant="dot" color={qualifying ? 'success' : 'default'}>
@@ -149,13 +149,13 @@ function ActivityModal({ activity, onClose }: { activity: StravaActivity; onClos
         <div className="flex flex-1 min-h-0 flex-col md:flex-row">
 
           {/* Map */}
-          <div className="flex-1 min-h-[300px] md:min-h-0 bg-content2">
+          <div className="flex-1 min-h-[40dvh] md:min-h-0 bg-content2">
             {hasPolyline ? (
               <MapContainer
                 center={[51.1657, 10.4515]}
                 zoom={10}
                 scrollWheelZoom
-                style={{ height: '100%', width: '100%', minHeight: '300px' }}
+                style={{ height: '100%', width: '100%', minHeight: '40dvh' }}
                 zoomControl
               >
                 <TileLayer
@@ -174,7 +174,7 @@ function ActivityModal({ activity, onClose }: { activity: StravaActivity; onClos
           </div>
 
           {/* Stats panel */}
-          <div className="w-full md:w-72 shrink-0 p-5 flex flex-col gap-4 overflow-y-auto border-t md:border-t-0 md:border-l border-divider">
+          <div className="w-full md:w-80 shrink-0 p-4 sm:p-5 flex flex-col gap-4 overflow-y-auto border-t md:border-t-0 md:border-l border-divider">
 
             {/* Key stats */}
             <div>
