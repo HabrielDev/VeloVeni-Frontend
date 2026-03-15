@@ -16,7 +16,7 @@ VeloVeni ist ein Strava-basiertes Geolocation-Spiel, bei dem Radfahrer durch das
 
 - **Strava OAuth** — Login via Strava, Aktivitäten werden automatisch synchronisiert
 - **Territoriumskarte** — Eigene Felder in Strava-Orange, globale Felder anderer User in Rot, Freunde farblich individuell zugeordnet
-- **Zonenmodus** — Umschalten zwischen *Deutschlandweit* (alle User) und *Freunde* (nur Strava-Kontakte)
+- **Zonenmodus** — Umschalten zwischen _Deutschlandweit_ (alle User) und _Freunde_ (nur Strava-Kontakte)
 - **Routen-Sidebar** — Aktivitätsliste mit Suche, Filter (Spielwürdig / Rad / Lauf / Alle) und Sortierung
 - **Leaderboard** — Global und Freunde-basiert mit Tile-Crossing-Rangliste
 - **Privatsphäre** — Nutzer können im Profil steuern, ob Zonen und/oder Fahrten mit Freunden geteilt werden
@@ -36,41 +36,4 @@ src/
 ├── pages/          # Seitenkomponenten (Maps, Rides, Leaderboard, Profile)
 ├── styles/         # Globale CSS inkl. Bike-Animation
 └── utils/          # Geo-Hilfsfunktionen (Polyline-Decoder, Tile-Berechnung, …)
-```
-
-## Lokale Entwicklung
-
-### Voraussetzungen
-
-- Node.js 18+
-- Laufendes [VeloVeni-Backend](https://gitea.com/HabrielDev/VeloVeni-Backend)
-
-### Installation
-
-```bash
-npm install
-```
-
-### Umgebungsvariablen
-
-Erstelle eine `.env.local` Datei:
-
-```env
-VITE_API_URL=http://localhost:3000
-VITE_STRAVA_CLIENT_ID=<deine_strava_client_id>
-VITE_STRAVA_REDIRECT_URI=http://localhost:5173/strava/callback
-```
-
-### Starten
-
-```bash
-npm run dev
-```
-
-Die App läuft unter `http://localhost:5173`.
-
-### Build
-
-```bash
-npm run build
 ```
