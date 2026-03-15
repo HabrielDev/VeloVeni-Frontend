@@ -277,8 +277,16 @@ export default function MapsPage() {
   // Pre-compute GeoJSON per user territory — enrich features with owner name + top3 for tooltip
   const territoriesGeoJsonMap = useMemo(() => {
     if (!showTerritories) return [];
-    return allTerritories
-      .filter((t) => t.tiles?.length > 0)
+    // Deduplicate by userId — keep entry with most tiles
+    const byUser: Record<number, TerritoryData> = {};
+    for (const t of allTerritories) {
+      if (!t.tiles?.length) continue;
+      const existing = byUser[t.userId];
+      if (!existing || t.tiles.length > existing.tiles.length) {
+        byUser[t.userId] = t;
+      }
+    }
+    return Object.values(byUser)
       .map((t) => {
         const ownerName = t.firstname ? `${t.firstname} ${t.lastname}` : `User ${t.userId}`;
         const base = tilesToGeoJson(t.tiles);
