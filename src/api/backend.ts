@@ -103,3 +103,11 @@ export async function getAllTerritories(jwt: string): Promise<TerritoryData[]> {
 export async function getLeaderboard(jwt: string): Promise<LeaderboardEntry[]> {
   return apiFetch<LeaderboardEntry[]>('/leaderboard', jwt);
 }
+
+export async function deleteAccount(jwt: string): Promise<void> {
+  await apiFetch<void>('/auth/account', jwt, { method: 'DELETE' });
+}
+
+export async function exportMyData(jwt: string): Promise<object> {
+  return apiFetch<object>('/auth/export', jwt);
+}

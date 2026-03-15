@@ -8,10 +8,11 @@ import { Button, Spinner, ScrollShadow, Avatar, Switch } from '@heroui/react';
 import {
   Bike, Activity, Clock, TrendingUp, RefreshCw,
   ChevronLeft, ChevronRight, LogOut, Layers, Ruler, Map, Trophy,
-  Eye, EyeOff, Route, Rows3,
+  Eye, EyeOff, Route, Rows3, Download, Trash2,
 } from 'lucide-react';
 import { getAuthUrl } from '@/api/strava';
 import { useStrava } from '@/features/auth/strava-context';
+import { deleteAccount, exportMyData } from '@/api/backend';
 import type { StravaActivity } from '@/api/strava';
 import {
   GERMANY_CENTER, GERMANY_BOUNDS, GERMANY_MAP_BOUNDS,
@@ -466,15 +467,52 @@ export default function MapsPage() {
                 ) : (
                   <>
                     {token && (
-                      <div className="flex items-center gap-2 p-2 rounded-xl bg-content2 shrink-0">
-                        <Avatar src={token.athlete.profile} name={token.athlete.firstname} size="sm" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{token.athlete.firstname} {token.athlete.lastname}</p>
-                          <p className="text-xs font-medium" style={{ color: '#FC4C02' }}>Strava verbunden</p>
+                      <div className="flex flex-col gap-2 shrink-0">
+                        <div className="flex items-center gap-2 p-2 rounded-xl bg-content2">
+                          <Avatar src={token.athlete.profile} name={token.athlete.firstname} size="sm" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{token.athlete.firstname} {token.athlete.lastname}</p>
+                            <p className="text-xs font-medium" style={{ color: '#FC4C02' }}>Strava verbunden</p>
+                          </div>
+                          <Button isIconOnly size="sm" variant="light" onPress={disconnect} title="Trennen">
+                            <LogOut size={14} />
+                          </Button>
                         </div>
-                        <Button isIconOnly size="sm" variant="light" onPress={disconnect} title="Trennen">
-                          <LogOut size={14} />
-                        </Button>
+                        <div className="flex gap-1.5">
+                          <Button
+                            size="sm" variant="flat" fullWidth
+                            startContent={<Download size={12} />}
+                            onPress={async () => {
+                              if (!jwtToken) return;
+                              try {
+                                const data = await exportMyData(jwtToken);
+                                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url; a.download = 'veloveni-export.json'; a.click();
+                                URL.revokeObjectURL(url);
+                              } catch (e) { console.error(e); }
+                            }}
+                            className="text-xs"
+                          >
+                            Export
+                          </Button>
+                          <Button
+                            size="sm" variant="flat" color="danger" fullWidth
+                            startContent={<Trash2 size={12} />}
+                            onPress={async () => {
+                              if (!jwtToken) return;
+                              if (!confirm('Account und alle Daten unwiderruflich löschen?')) return;
+                              try {
+                                await deleteAccount(jwtToken);
+                                disconnect();
+                              } catch (e) { console.error(e); }
+                            }}
+                            className="text-xs"
+                          >
+                            Löschen
+                          </Button>
+                        </div>
                       </div>
                     )}
 
