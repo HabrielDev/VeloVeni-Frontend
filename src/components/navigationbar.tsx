@@ -1,6 +1,6 @@
 import { Navbar, NavbarBrand, NavbarContent, NavbarItem, Link, Tabs, Tab } from "@heroui/react";
 import { useLocation, Link as RouterLink } from "react-router-dom";
-import { MapPin, Trophy, UserCircle, Bike } from "lucide-react"; // Passende Icons
+import { MapPin, Trophy, UserCircle, Bike, Route } from "lucide-react"; // Passende Icons
 import ThemeSwitch from "./themeswitch";
 
 export default function HomePage() {
@@ -9,6 +9,7 @@ export default function HomePage() {
   // Konfiguration für die Tabs (um Redundanz zu vermeiden)
   const navItems = [
     { key: "/maps", label: "Maps", icon: MapPin, to: "/maps" },
+    { key: "/rides", label: "Rides", icon: Route, to: "/rides" },
     { key: "/leaderboard", label: "Leaderboard", icon: Trophy, to: "/leaderboard" },
     { key: "/profile", label: "Profile", icon: UserCircle, to: "/profile" },
   ];
