@@ -30,10 +30,20 @@ export interface BackendActivity {
 
 export interface TerritoryData {
   userId: number;
+  firstname?: string;
+  lastname?: string;
   color: string;
   tileCount: number;
   areaKm2: number;
   tiles: string[];
+}
+
+export interface TileCrossingEntry {
+  userId: number;
+  firstname: string;
+  lastname: string;
+  crossingCount: number;
+  color: string;
 }
 
 export interface LeaderboardEntry {
@@ -84,6 +94,10 @@ export async function syncActivities(jwt: string): Promise<{ synced: number }> {
   return apiFetch<{ synced: number }>('/activities/sync', jwt, { method: 'POST' });
 }
 
+export async function recalculateTerritories(jwt: string): Promise<{ ok: boolean; users: number }> {
+  return apiFetch<{ ok: boolean; users: number }>('/activities/recalculate', jwt, { method: 'POST' });
+}
+
 export async function getActivities(jwt: string): Promise<BackendActivity[]> {
   return apiFetch<BackendActivity[]>('/activities', jwt);
 }
@@ -98,6 +112,10 @@ export async function getMyTerritories(jwt: string): Promise<TerritoryData> {
 
 export async function getAllTerritories(jwt: string): Promise<TerritoryData[]> {
   return apiFetch<TerritoryData[]>('/territories/all', jwt);
+}
+
+export async function getTileCrossings(jwt: string): Promise<Record<string, TileCrossingEntry[]>> {
+  return apiFetch<Record<string, TileCrossingEntry[]>>('/territories/tiles/crossings', jwt);
 }
 
 export async function getLeaderboard(jwt: string): Promise<LeaderboardEntry[]> {

@@ -7,12 +7,13 @@ import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import { Button, Spinner, ScrollShadow, Avatar, Switch } from '@heroui/react';
 import {
   Bike, Activity, Clock, TrendingUp, RefreshCw,
-  ChevronLeft, ChevronRight, LogOut, Layers, Ruler, Map, Trophy,
-  Eye, EyeOff, Route, Rows3, Download, Trash2,
+  LogOut, Layers, Ruler, Map, Trophy,
+  Eye, EyeOff, Route, Rows3,
 } from 'lucide-react';
 import { getAuthUrl } from '@/api/strava';
 import { useStrava } from '@/features/auth/strava-context';
-import { deleteAccount, exportMyData } from '@/api/backend';
+import { getAllTerritories, getTileCrossings, recalculateTerritories } from '@/api/backend';
+import type { TerritoryData, TileCrossingEntry } from '@/api/backend';
 import type { StravaActivity } from '@/api/strava';
 import {
   GERMANY_CENTER, GERMANY_BOUNDS, GERMANY_MAP_BOUNDS,
@@ -83,9 +84,9 @@ const fmtDate = (d: string) =>
 
 // ─── Hoverable Polyline with popup ────────────────────────────────────────────
 function HoverablePolyline({
-  activity, positions, isActive,
+  activity, positions, isActive, hidePopup,
 }: {
-  activity: StravaActivity; positions: [number, number][]; isActive: boolean;
+  activity: StravaActivity; positions: [number, number][]; isActive: boolean; hidePopup?: boolean;
 }) {
   const map = useMap();
   const popupRef = useRef<L.Popup | null>(null);
@@ -99,6 +100,7 @@ function HoverablePolyline({
   const muted = isDark ? '#8B9CB6' : '#888888';
 
   const handleMouseOver = (e: L.LeafletMouseEvent) => {
+    if (hidePopup) return;
     const content = `
       <div style="min-width:180px;font-family:system-ui,sans-serif;color:${text}">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
@@ -210,18 +212,36 @@ export default function MapsPage() {
     activitiesLoading, routeLoading, syncActivities, selectActivity, disconnect,
   } = useStrava();
 
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [tab, setTab] = useState<'routes' | 'map' | 'game'>('routes');
   const [tileKey, setTileKey] = useState<TileKey>('street');
   const [showTerritories, setShowTerritories] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('all');
-  const [showRoutePicker, setShowRoutePicker] = useState(false);
+  const [allTerritories, setAllTerritories] = useState<TerritoryData[]>([]);
+  const [tileCrossings, setTileCrossings] = useState<Record<string, TileCrossingEntry[]>>({});
+  const [recalcLoading, setRecalcLoading] = useState(false);
   const tile = TILE_LAYERS[tileKey];
 
-  // Close picker when switching away from single mode
+  const reloadMapData = (jwt: string) => {
+    getAllTerritories(jwt).then(setAllTerritories).catch(() => {});
+    getTileCrossings(jwt).then(setTileCrossings).catch(() => {});
+  };
+
+  // Load all users' territories and crossing counts for the map
   useEffect(() => {
-    if (viewMode !== 'single') setShowRoutePicker(false);
-  }, [viewMode]);
+    if (!jwtToken) return;
+    reloadMapData(jwtToken);
+  }, [jwtToken]);
+
+  const handleRecalculate = async () => {
+    if (!jwtToken) return;
+    setRecalcLoading(true);
+    try {
+      await recalculateTerritories(jwtToken);
+      reloadMapData(jwtToken);
+    } finally {
+      setRecalcLoading(false);
+    }
+  };
 
   const qualifyingActivities = useMemo(
     () => activities.filter((a) => (a.qualifying ?? checkQualifying(a).qualifying) && a.map?.summary_polyline),
@@ -239,10 +259,29 @@ export default function MapsPage() {
     return Array.from(tiles);
   }, [allRoutes]);
 
-  const territoriesGeoJson = useMemo(
-    () => (showTerritories && allTiles.length > 0 ? tilesToGeoJson(allTiles) : null),
-    [allTiles, showTerritories],
-  );
+  // Pre-compute GeoJSON per user territory — enrich features with owner name + top3 for tooltip
+  const territoriesGeoJsonMap = useMemo(() => {
+    if (!showTerritories) return [];
+    return allTerritories
+      .filter((t) => t.tiles?.length > 0)
+      .map((t) => {
+        const ownerName = t.firstname ? `${t.firstname} ${t.lastname}` : `User ${t.userId}`;
+        const base = tilesToGeoJson(t.tiles);
+        const geoJson = {
+          ...base,
+          features: base.features.map((f) => ({
+            ...f,
+            properties: {
+              ...f.properties,
+              ownerName,
+              color: t.color,
+              top3: tileCrossings[f.properties.key] ?? [],
+            },
+          })),
+        };
+        return { userId: t.userId, color: t.color, geoJson };
+      });
+  }, [allTerritories, showTerritories, tileCrossings]);
 
   const gameStats = useMemo(() => ({
     routeCount: qualifyingActivities.length,
@@ -270,98 +309,6 @@ export default function MapsPage() {
       <div className="flex-1 p-4 min-w-0">
         <div className="relative h-full w-full rounded-2xl overflow-hidden border-2 border-divider shadow-lg">
 
-          {/* ── Top-right control panel ───────────────────────────────────── */}
-          <div className="absolute top-3 right-3 z-[1000] flex flex-col gap-2 items-end">
-
-            {/* Main control card */}
-            <div className="glass rounded-2xl overflow-hidden min-w-[200px]">
-
-              {/* Fahrten anzeigen */}
-              <div className="px-3 pt-2.5 pb-1.5 border-b border-divider">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-default-400 mb-2">
-                  Fahrten anzeigen
-                </p>
-                <div className="flex gap-1">
-                  {VIEW_MODES.map(({ key, label, icon }) => (
-                    <button
-                      key={key}
-                      onClick={() => {
-                        setViewMode(key);
-                        if (key === 'single') setShowRoutePicker(true);
-                      }}
-                      className={`flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl text-[11px] font-semibold transition-colors ${
-                        viewMode === key
-                          ? 'bg-[#FC4C02] text-white'
-                          : 'bg-content2 text-default-500 hover:bg-content3'
-                      }`}
-                    >
-                      {icon}
-                      {label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Single mode: selected route badge */}
-                {viewMode === 'single' && (
-                  <button
-                    onClick={() => setShowRoutePicker(!showRoutePicker)}
-                    className="w-full mt-2 flex items-center justify-between px-2 py-1.5 rounded-lg bg-content2 hover:bg-content3 transition-colors text-left"
-                  >
-                    <span className="text-xs text-default-600 truncate">
-                      {activeActivityId
-                        ? qualifyingActivities.find((a) => a.id === activeActivityId)?.name ?? 'Fahrt gewählt'
-                        : 'Fahrt auswählen...'}
-                    </span>
-                    <ChevronRight size={12} className={`shrink-0 text-default-400 transition-transform ${showRoutePicker ? 'rotate-90' : ''}`} />
-                  </button>
-                )}
-              </div>
-
-              {/* Zonen toggle */}
-              <div className="px-3 py-2.5 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-xs font-medium text-default-600">
-                  {showTerritories ? <Eye size={13} className="text-[#FC4C02]" /> : <EyeOff size={13} />}
-                  Zonen
-                </div>
-                <Switch
-                  isSelected={showTerritories}
-                  onValueChange={setShowTerritories}
-                  size="sm"
-                  color="warning"
-                />
-              </div>
-            </div>
-
-            {/* Route picker dropdown */}
-            {viewMode === 'single' && showRoutePicker && qualifyingActivities.length > 0 && (
-              <div className="glass rounded-2xl w-64 max-h-72 flex flex-col overflow-hidden">
-                <div className="px-3 py-2 border-b border-divider shrink-0">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-default-400">
-                    {qualifyingActivities.length} qualifizierte Routen
-                  </p>
-                </div>
-                <div className="overflow-y-auto">
-                  {qualifyingActivities.map((a) => (
-                    <button
-                      key={a.id}
-                      onClick={() => { selectActivity(a.id); setShowRoutePicker(false); }}
-                      className={`w-full text-left px-3 py-2.5 transition-colors border-b border-divider/40 last:border-0 ${
-                        activeActivityId === a.id
-                          ? 'bg-[#FC4C02]/10 text-[#FC4C02]'
-                          : 'hover:bg-content2 text-default-700'
-                      }`}
-                    >
-                      <p className="text-xs font-semibold truncate">{a.name}</p>
-                      <p className="text-[10px] text-default-400 mt-0.5">
-                        {fmtDist(a.distance)} · {fmtDate(a.start_date_local)}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
           <MapContainer
             center={GERMANY_CENTER}
             zoom={6}
@@ -376,28 +323,55 @@ export default function MapsPage() {
 
             <FitGermany />
 
-            {/* Territory layer */}
-            {territoriesGeoJson && (
+            {/* Territory layers — one per user, each in their own color + owner tooltip */}
+            {territoriesGeoJsonMap.map(({ userId, color, geoJson }) => (
               <GeoJSON
-                key={`t-${allTiles.length}`}
-                data={territoriesGeoJson}
+                key={`t-${userId}-${geoJson.features.length}-${Object.keys(tileCrossings).length}`}
+                data={geoJson}
                 style={() => ({
-                  fillColor: '#FC4C02',
-                  fillOpacity: 0.22,
-                  color: '#FC4C02',
-                  weight: 0.3,
-                  opacity: 0.4,
+                  fillColor: color,
+                  fillOpacity: 0.28,
+                  color,
+                  weight: 0.4,
+                  opacity: 0.5,
                 })}
+                onEachFeature={(feature, layer) => {
+                  const name = feature.properties?.ownerName ?? 'Unbekannt';
+                  const c = feature.properties?.color ?? color;
+                  const top3: TileCrossingEntry[] = feature.properties?.top3 ?? [];
+                  const medals = ['🥇', '🥈', '🥉'];
+                  const rows = top3.map((e, i) =>
+                    `<div style="display:flex;align-items:center;gap:5px;padding:2px 0">
+                      <span style="font-size:12px;width:16px;text-align:center">${medals[i]}</span>
+                      <span style="width:8px;height:8px;border-radius:50%;background:${e.color};display:inline-block;flex-shrink:0"></span>
+                      <span style="font-size:11px;flex:1;white-space:nowrap">${e.firstname} ${e.lastname.charAt(0)}.</span>
+                      <span style="font-size:11px;font-weight:700;color:${e.color}">${e.crossingCount}×</span>
+                    </div>`,
+                  ).join('');
+                  layer.bindTooltip(
+                    `<div style="min-width:170px;font-family:system-ui,sans-serif">
+                      <div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;padding-bottom:6px;border-bottom:1px solid rgba(128,128,128,0.2)">
+                        <span style="width:10px;height:10px;border-radius:2px;background:${c};flex-shrink:0;display:inline-block"></span>
+                        <span style="font-size:12px;font-weight:700">${name}</span>
+                        <span style="font-size:9px;margin-left:auto;background:${c}33;color:${c};padding:1px 5px;border-radius:4px;font-weight:600">Besitzer</span>
+                      </div>
+                      <div style="font-size:9px;font-weight:700;color:#888;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:4px">Überfahrten</div>
+                      ${rows || '<div style="font-size:11px;color:#999">Keine Daten</div>'}
+                    </div>`,
+                    { sticky: false, className: 'route-hover-popup', direction: 'top', offset: [0, -10] },
+                  );
+                }}
               />
-            )}
+            ))}
 
-            {/* Routes with hover popup */}
+            {/* Routes with hover popup — only when territories are hidden */}
             {visibleRoutes.map((r) => (
               <HoverablePolyline
                 key={r.id}
                 activity={r.activity}
                 positions={r.positions}
                 isActive={activeActivityId === r.id}
+                hidePopup={showTerritories}
               />
             ))}
 
@@ -415,202 +389,180 @@ export default function MapsPage() {
       </div>
 
       {/* ── Sidebar ──────────────────────────────────────────────────────────── */}
-      <div className={`flex flex-col border-l border-divider bg-content1/95 backdrop-blur-sm transition-all duration-200 shrink-0 ${sidebarOpen ? 'w-80' : 'w-12'}`}>
-        <div className="flex items-center justify-between p-3 border-b border-divider shrink-0 h-14">
-          {sidebarOpen && (
-            <span className="font-bold text-sm tracking-tight">
-              Velo<span className="text-primary">Veni</span>
-            </span>
-          )}
-          <Button isIconOnly size="sm" variant="light" onPress={() => setSidebarOpen(!sidebarOpen)} className={sidebarOpen ? '' : 'mx-auto'}>
-            {sidebarOpen ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-          </Button>
+      <div className="flex flex-col w-80 border-l border-divider bg-content1/95 backdrop-blur-sm shrink-0">
+
+        {/* Tab buttons */}
+        <div className="flex shrink-0 border-b border-divider">
+          {(['routes', 'map', 'game'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`flex-1 py-2.5 text-xs font-semibold transition-colors flex items-center justify-center gap-1 ${
+                tab === t ? 'text-primary border-b-2 border-primary' : 'text-default-400 hover:text-default-600'
+              }`}
+            >
+              {t === 'routes' && <><Map size={12} />Routen</>}
+              {t === 'map' && <><Layers size={12} />Karte</>}
+              {t === 'game' && <><Trophy size={12} />Spiel</>}
+            </button>
+          ))}
         </div>
 
-        {sidebarOpen && (
-          <div className="flex flex-col flex-1 min-h-0">
-            {/* Tab buttons */}
-            <div className="flex shrink-0 border-b border-divider">
-              {(['routes', 'map', 'game'] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setTab(t)}
-                  className={`flex-1 py-2.5 text-xs font-semibold transition-colors flex items-center justify-center gap-1 ${
-                    tab === t ? 'text-primary border-b-2 border-primary' : 'text-default-400 hover:text-default-600'
-                  }`}
-                >
-                  {t === 'routes' && <><Map size={12} />Routen</>}
-                  {t === 'map' && <><Layers size={12} />Karte</>}
-                  {t === 'game' && <><Trophy size={12} />Spiel</>}
-                </button>
+        {/* Persistent zones toggle */}
+        <div className="flex items-center justify-between px-3 py-2 border-b border-divider shrink-0">
+          <div className="flex items-center gap-2 text-xs font-medium text-default-600">
+            {showTerritories ? <Eye size={13} className="text-[#FC4C02]" /> : <EyeOff size={13} />}
+            Zonen anzeigen
+          </div>
+          <Switch isSelected={showTerritories} onValueChange={setShowTerritories} size="sm" color="warning" />
+        </div>
+
+        {/* ── Tab: Routen ──────────────────────────────────────────────────── */}
+        {tab === 'routes' && (
+          <div className="flex flex-col flex-1 min-h-0 p-3 gap-3">
+            {!jwtToken ? (
+              <div className="flex flex-col items-center gap-4 py-10 text-center">
+                <div className="w-14 h-14 bg-[#FC4C02] rounded-full flex items-center justify-center shadow-lg">
+                  <span className="text-white font-extrabold text-xl">S</span>
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">Mit Strava verbinden</p>
+                  <p className="text-xs text-default-400 mt-1 leading-relaxed">
+                    Synchronisiere deine Aktivitäten und starte das Spiel.
+                  </p>
+                </div>
+                <Button as="a" href={getAuthUrl()} size="sm" className="bg-[#FC4C02] text-white font-semibold">
+                  Mit Strava verbinden
+                </Button>
+              </div>
+            ) : (
+              <>
+                {token && (
+                  <div className="flex items-center gap-2 p-2 rounded-xl bg-content2 shrink-0">
+                    <Avatar src={token.athlete.profile} name={token.athlete.firstname} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{token.athlete.firstname} {token.athlete.lastname}</p>
+                      <p className="text-xs font-medium" style={{ color: '#FC4C02' }}>Strava verbunden</p>
+                    </div>
+                    <Button isIconOnly size="sm" variant="light" onPress={disconnect} title="Trennen">
+                      <LogOut size={14} />
+                    </Button>
+                  </div>
+                )}
+
+                {/* ViewMode quick selector */}
+                {activities.length > 0 && (
+                  <div className="flex gap-1 shrink-0">
+                    {VIEW_MODES.map(({ key, label, icon }) => (
+                      <button
+                        key={key}
+                        onClick={() => setViewMode(key)}
+                        className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${
+                          viewMode === key ? 'bg-[#FC4C02] text-white' : 'bg-content2 text-default-500 hover:bg-content3'
+                        }`}
+                      >
+                        {icon}{label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between shrink-0">
+                  {activities.length === 0 ? (
+                    <Button size="sm" variant="flat" onPress={syncActivities} isLoading={activitiesLoading}
+                      startContent={!activitiesLoading && <RefreshCw size={14} />} fullWidth>
+                      Aktivitäten synchronisieren
+                    </Button>
+                  ) : (
+                    <>
+                      <span className="text-xs text-default-400">
+                        {activities.length} Aktivitäten · <span className="text-success">{qualifyingActivities.length} qualifiziert</span>
+                      </span>
+                      <Button isIconOnly size="sm" variant="light" onPress={syncActivities} isLoading={activitiesLoading}>
+                        {!activitiesLoading && <RefreshCw size={14} />}
+                      </Button>
+                    </>
+                  )}
+                </div>
+
+                <ScrollShadow className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
+                  <div className="flex flex-col gap-1 pb-4">
+                    {activitiesLoading && activities.length === 0 ? (
+                      <div className="flex justify-center py-10"><Spinner size="sm" /></div>
+                    ) : (
+                      qualifyingActivities.map((a) => (
+                        <ActivityItem
+                          key={a.id} activity={a}
+                          isActive={activeActivityId === a.id}
+                          isLoading={routeLoading}
+                          onClick={() => selectActivity(a.id)}
+                        />
+                      ))
+                    )}
+                  </div>
+                </ScrollShadow>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── Tab: Karte ───────────────────────────────────────────────────── */}
+        {tab === 'map' && (
+          <div className="p-3 flex flex-col gap-3">
+            <p className="text-xs text-default-400 font-semibold uppercase tracking-wide">Kartentyp</p>
+            {(Object.keys(TILE_LAYERS) as TileKey[]).map((key) => (
+              <button key={key} onClick={() => setTileKey(key)}
+                className={`flex items-center gap-3 p-3 rounded-xl border transition-colors text-left ${
+                  tileKey === key ? 'border-primary bg-primary/10 text-primary' : 'border-divider hover:bg-content2'
+                }`}>
+                <Layers size={16} />
+                <span className="text-sm font-medium flex-1">{TILE_LAYERS[key].label}</span>
+                {tileKey === key && <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full">Aktiv</span>}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* ── Tab: Spiel ───────────────────────────────────────────────────── */}
+        {tab === 'game' && (
+          <div className="p-3 flex flex-col gap-3">
+            <p className="text-xs text-default-400 font-semibold uppercase tracking-wide">Dein Gebiet</p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: gameStats.routeCount, label: 'Routen', color: 'text-[#FC4C02]', bg: 'bg-[#FC4C02]/10' },
+                { value: `${gameStats.totalDistanceKm.toFixed(0)} km`, label: 'Strecke', color: 'text-primary', bg: 'bg-primary/10' },
+                { value: gameStats.uniqueTiles, label: 'Felder', color: 'text-success', bg: 'bg-success/10' },
+                { value: `${gameStats.areaKm2.toFixed(0)} km²`, label: 'Fläche', color: 'text-secondary', bg: 'bg-secondary/10' },
+              ].map(({ value, label, color, bg }) => (
+                <div key={label} className={`p-3 rounded-xl ${bg} text-center`}>
+                  <p className={`text-xl font-bold ${color}`}>{value}</p>
+                  <p className="text-xs text-default-400 mt-0.5">{label}</p>
+                </div>
               ))}
             </div>
 
-            {/* ── Tab: Routen ────────────────────────────────────────────── */}
-            {tab === 'routes' && (
-              <div className="flex flex-col flex-1 min-h-0 p-3 gap-3">
-                {!jwtToken ? (
-                  <div className="flex flex-col items-center gap-4 py-10 text-center">
-                    <div className="w-14 h-14 bg-[#FC4C02] rounded-full flex items-center justify-center shadow-lg">
-                      <span className="text-white font-extrabold text-xl">S</span>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-sm">Mit Strava verbinden</p>
-                      <p className="text-xs text-default-400 mt-1 leading-relaxed">
-                        Synchronisiere deine Aktivitäten und starte das Spiel.
-                      </p>
-                    </div>
-                    <Button as="a" href={getAuthUrl()} size="sm" className="bg-[#FC4C02] text-white font-semibold">
-                      Mit Strava verbinden
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    {token && (
-                      <div className="flex flex-col gap-2 shrink-0">
-                        <div className="flex items-center gap-2 p-2 rounded-xl bg-content2">
-                          <Avatar src={token.athlete.profile} name={token.athlete.firstname} size="sm" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{token.athlete.firstname} {token.athlete.lastname}</p>
-                            <p className="text-xs font-medium" style={{ color: '#FC4C02' }}>Strava verbunden</p>
-                          </div>
-                          <Button isIconOnly size="sm" variant="light" onPress={disconnect} title="Trennen">
-                            <LogOut size={14} />
-                          </Button>
-                        </div>
-                        <div className="flex gap-1.5">
-                          <Button
-                            size="sm" variant="flat" fullWidth
-                            startContent={<Download size={12} />}
-                            onPress={async () => {
-                              if (!jwtToken) return;
-                              try {
-                                const data = await exportMyData(jwtToken);
-                                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                                const url = URL.createObjectURL(blob);
-                                const a = document.createElement('a');
-                                a.href = url; a.download = 'veloveni-export.json'; a.click();
-                                URL.revokeObjectURL(url);
-                              } catch (e) { console.error(e); }
-                            }}
-                            className="text-xs"
-                          >
-                            Export
-                          </Button>
-                          <Button
-                            size="sm" variant="flat" color="danger" fullWidth
-                            startContent={<Trash2 size={12} />}
-                            onPress={async () => {
-                              if (!jwtToken) return;
-                              if (!confirm('Account und alle Daten unwiderruflich löschen?')) return;
-                              try {
-                                await deleteAccount(jwtToken);
-                                disconnect();
-                              } catch (e) { console.error(e); }
-                            }}
-                            className="text-xs"
-                          >
-                            Löschen
-                          </Button>
-                        </div>
-                      </div>
-                    )}
+            <Button
+              size="sm"
+              variant="flat"
+              onPress={handleRecalculate}
+              isLoading={recalcLoading}
+              startContent={!recalcLoading && <RefreshCw size={14} />}
+              fullWidth
+            >
+              Felder neu berechnen
+            </Button>
 
-                    <div className="flex items-center justify-between shrink-0">
-                      {activities.length === 0 ? (
-                        <Button size="sm" variant="flat" onPress={syncActivities} isLoading={activitiesLoading}
-                          startContent={!activitiesLoading && <RefreshCw size={14} />} fullWidth>
-                          Aktivitäten synchronisieren
-                        </Button>
-                      ) : (
-                        <>
-                          <span className="text-xs text-default-400">
-                            {activities.length} Aktivitäten · <span className="text-success">{qualifyingActivities.length} qualifiziert</span>
-                          </span>
-                          <Button isIconOnly size="sm" variant="light" onPress={syncActivities} isLoading={activitiesLoading}>
-                            {!activitiesLoading && <RefreshCw size={14} />}
-                          </Button>
-                        </>
-                      )}
-                    </div>
-
-                    <ScrollShadow className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
-                      <div className="flex flex-col gap-1 pb-4">
-                        {activitiesLoading && activities.length === 0 ? (
-                          <div className="flex justify-center py-10"><Spinner size="sm" /></div>
-                        ) : (
-                          qualifyingActivities.map((a) => (
-                            <ActivityItem
-                              key={a.id} activity={a}
-                              isActive={activeActivityId === a.id}
-                              isLoading={routeLoading}
-                              onClick={() => selectActivity(a.id)}
-                            />
-                          ))
-                        )}
-                      </div>
-                    </ScrollShadow>
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* ── Tab: Karte ─────────────────────────────────────────────── */}
-            {tab === 'map' && (
-              <div className="p-3 flex flex-col gap-3">
-                <p className="text-xs text-default-400 font-semibold uppercase tracking-wide">Kartentyp</p>
-                {(Object.keys(TILE_LAYERS) as TileKey[]).map((key) => (
-                  <button key={key} onClick={() => setTileKey(key)}
-                    className={`flex items-center gap-3 p-3 rounded-xl border transition-colors text-left ${
-                      tileKey === key ? 'border-primary bg-primary/10 text-primary' : 'border-divider hover:bg-content2'
-                    }`}>
-                    <Layers size={16} />
-                    <span className="text-sm font-medium flex-1">{TILE_LAYERS[key].label}</span>
-                    {tileKey === key && <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full">Aktiv</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* ── Tab: Spiel ─────────────────────────────────────────────── */}
-            {tab === 'game' && (
-              <div className="p-3 flex flex-col gap-3">
-                <p className="text-xs text-default-400 font-semibold uppercase tracking-wide">Dein Gebiet</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { value: gameStats.routeCount, label: 'Routen', color: 'text-[#FC4C02]', bg: 'bg-[#FC4C02]/10' },
-                    { value: `${gameStats.totalDistanceKm.toFixed(0)} km`, label: 'Strecke', color: 'text-primary', bg: 'bg-primary/10' },
-                    { value: gameStats.uniqueTiles, label: 'Felder', color: 'text-success', bg: 'bg-success/10' },
-                    { value: `${gameStats.areaKm2.toFixed(0)} km²`, label: 'Fläche', color: 'text-secondary', bg: 'bg-secondary/10' },
-                  ].map(({ value, label, color, bg }) => (
-                    <div key={label} className={`p-3 rounded-xl ${bg} text-center`}>
-                      <p className={`text-xl font-bold ${color}`}>{value}</p>
-                      <p className="text-xs text-default-400 mt-0.5">{label}</p>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-xl bg-content2">
-                  <div>
-                    <p className="text-sm font-medium">Gebiete anzeigen</p>
-                    <p className="text-xs text-default-400">Orangeflächen auf der Karte</p>
-                  </div>
-                  <Switch isSelected={showTerritories} onValueChange={setShowTerritories} size="sm" color="warning" />
-                </div>
-
-                <div className="p-3 rounded-xl bg-content2">
-                  <p className="text-xs font-semibold mb-2">Qualifying-Kriterien</p>
-                  {[
-                    '🚴 Rad-Aktivität (kein Lauf/Swim)',
-                    '📍 GPS-Track vorhanden',
-                    '🇩🇪 Startpunkt in Deutschland',
-                    '📏 Mindestens 1 km Strecke',
-                  ].map((c) => (
-                    <p key={c} className="text-xs text-default-500 mt-1">{c}</p>
-                  ))}
-                </div>
-              </div>
-            )}
+            <div className="p-3 rounded-xl bg-content2">
+              <p className="text-xs font-semibold mb-2">Qualifying-Kriterien</p>
+              {[
+                '🚴 Rad-Aktivität (kein Lauf/Swim)',
+                '📍 GPS-Track vorhanden',
+                '🇩🇪 Startpunkt in Deutschland',
+                '📏 Mindestens 1 km Strecke',
+              ].map((c) => (
+                <p key={c} className="text-xs text-default-500 mt-1">{c}</p>
+              ))}
+            </div>
           </div>
         )}
       </div>

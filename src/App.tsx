@@ -5,6 +5,8 @@ import NavigationBar from '@/components/navigationbar';
 import ConsentBanner from '@/components/consent-banner';
 import MapsPage from './pages/maps';
 import RidesPage from './pages/rides';
+import ProfilePage from './pages/profile';
+import LeaderboardPage from './pages/leaderboard';
 import StravaCallback from './pages/strava-callback';
 
 function App() {
@@ -17,6 +19,8 @@ function App() {
           <Routes>
             <Route element={<MapsPage />} path="/maps" />
             <Route element={<RidesPage />} path="/rides" />
+            <Route element={<ProfilePage />} path="/profile" />
+            <Route element={<LeaderboardPage />} path="/leaderboard" />
             <Route element={<StravaCallback />} path="/strava/callback" />
           </Routes>
         </main>
