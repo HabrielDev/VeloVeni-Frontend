@@ -208,7 +208,7 @@ function ActivityItem({
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function MapsPage() {
   const {
-    jwtToken, token, activities, activeRoute, activeActivityId,
+    jwtToken, token, backendUserId, activities, activeRoute, activeActivityId,
     activitiesLoading, routeLoading, syncActivities, selectActivity, disconnect,
   } = useStrava();
 
@@ -231,11 +231,12 @@ export default function MapsPage() {
   const tile = TILE_LAYERS[tileKey];
 
   const reloadMapData = (jwt: string, mode: 'global' | 'friends') => {
+    setAllTerritories([]);
     const territoriesFn = mode === 'friends' ? getFriendsTerritories : getAllTerritories;
-    territoriesFn(jwt).then(setAllTerritories).catch(() => {});
+    territoriesFn(jwt).then(setAllTerritories).catch(() => setAllTerritories([]));
     getTileCrossings(jwt).then(setTileCrossings).catch(() => {});
     if (mode === 'friends') {
-      getFriendsActivities(jwt).then(setFriendActivities).catch(() => {});
+      getFriendsActivities(jwt).then(setFriendActivities).catch(() => setFriendActivities([]));
     } else {
       setFriendActivities([]);
     }
@@ -288,6 +289,14 @@ export default function MapsPage() {
     }
     return Object.values(byUser)
       .map((t) => {
+        const isOwn = t.userId === backendUserId;
+        // Deutschlandweit: own = green, others = red
+        // Freunde: own = green, each friend = their individual color
+        const displayColor = isOwn
+          ? '#FC4C02'
+          : zoneMode === 'global'
+            ? '#EF4444'
+            : t.color;
         const ownerName = t.firstname ? `${t.firstname} ${t.lastname}` : `User ${t.userId}`;
         const base = tilesToGeoJson(t.tiles);
         const geoJson = {
@@ -297,14 +306,14 @@ export default function MapsPage() {
             properties: {
               ...f.properties,
               ownerName,
-              color: t.color,
+              color: displayColor,
               top3: tileCrossings[f.properties.key] ?? [],
             },
           })),
         };
-        return { userId: t.userId, color: t.color, geoJson };
+        return { userId: t.userId, color: displayColor, geoJson };
       });
-  }, [allTerritories, showTerritories, tileCrossings]);
+  }, [allTerritories, showTerritories, tileCrossings, backendUserId, zoneMode]);
 
   const gameStats = useMemo(() => ({
     routeCount: qualifyingActivities.length,
@@ -469,12 +478,14 @@ export default function MapsPage() {
 
       {/* ── Sidebar ──────────────────────────────────────────────────────────── */}
       <div className={`
-        flex flex-col border-l border-divider bg-content1/95 backdrop-blur-sm shrink-0
-        md:relative md:w-80 md:translate-x-0
+        shrink-0 bg-content1/95 backdrop-blur-sm
+        md:bg-transparent md:backdrop-blur-none md:p-4 md:pl-0
+        md:relative md:w-80 md:translate-x-0 md:top-auto md:bottom-auto
         fixed right-0 top-16 bottom-14 z-[500] w-80 max-w-[85vw]
         transition-transform duration-200 ease-in-out
         ${mobileSidebarOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
       `}>
+      <div className="flex flex-col h-full border-l border-divider bg-content1/95 md:border md:rounded-2xl md:shadow-lg md:overflow-hidden backdrop-blur-sm">
 
         {/* Mobile close button */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-divider md:hidden shrink-0">
@@ -751,6 +762,7 @@ export default function MapsPage() {
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

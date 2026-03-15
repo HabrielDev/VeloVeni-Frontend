@@ -4,11 +4,13 @@ import {
   syncActivities as apiSync,
   getActivities,
   getActivityRoute,
+  getMe,
 } from '@/api/backend';
 
 interface StravaContextType {
   jwtToken: string | null;
   token: StravaToken | null;  // athlete display info
+  backendUserId: number | null;
   activities: StravaActivity[];
   activeRoute: [number, number][];
   activeActivityId: number | null;
@@ -40,6 +42,13 @@ export function StravaProvider({ children }: { children: ReactNode }) {
   const [activeActivityId, setActiveActivityId] = useState<number | null>(null);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [routeLoading, setRouteLoading] = useState(false);
+  const [backendUserId, setBackendUserId] = useState<number | null>(null);
+
+  // Resolve backend user ID once per session
+  useEffect(() => {
+    if (!jwtToken) { setBackendUserId(null); return; }
+    getMe(jwtToken).then((me) => setBackendUserId(me.id)).catch(() => {});
+  }, [jwtToken]);
 
   // Auto-load activities from DB on mount if already logged in
   useEffect(() => {
@@ -121,6 +130,7 @@ export function StravaProvider({ children }: { children: ReactNode }) {
       value={{
         jwtToken,
         token,
+        backendUserId,
         activities,
         activeRoute,
         activeActivityId,
