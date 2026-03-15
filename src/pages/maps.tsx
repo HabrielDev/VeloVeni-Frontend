@@ -90,27 +90,33 @@ function HoverablePolyline({
   const popupRef = useRef<L.Popup | null>(null);
 
   const isCycling = CYCLING_TYPES.includes(activity.sport_type ?? activity.type);
+  const isDark = document.documentElement.closest('.dark') !== null ||
+    document.body.classList.contains('dark') ||
+    document.querySelector('.dark') !== null;
+  const bg    = isDark ? '#1E2430' : '#F4F3F0';
+  const text  = isDark ? '#ECECEC' : '#18181B';
+  const muted = isDark ? '#8B9CB6' : '#888888';
 
   const handleMouseOver = (e: L.LeafletMouseEvent) => {
     const content = `
-      <div style="min-width:180px;font-family:system-ui,sans-serif">
+      <div style="min-width:180px;font-family:system-ui,sans-serif;color:${text}">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
           <span style="font-size:14px">${isCycling ? '🚴' : '🏃'}</span>
           <strong style="font-size:13px;line-height:1.2">${activity.name}</strong>
         </div>
-        <div style="font-size:11px;color:#888;margin-bottom:8px">${fmtDate(activity.start_date_local)}</div>
+        <div style="font-size:11px;color:${muted};margin-bottom:8px">${fmtDate(activity.start_date_local)}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
-          <div style="text-align:center;background:#f4f4f5;border-radius:8px;padding:6px 4px">
-            <div style="font-weight:700;font-size:12px">${fmtDist(activity.distance)}</div>
-            <div style="font-size:10px;color:#888">Distanz</div>
+          <div style="text-align:center;background:${bg};border-radius:8px;padding:6px 4px">
+            <div style="font-weight:700;font-size:12px;color:${text}">${fmtDist(activity.distance)}</div>
+            <div style="font-size:10px;color:${muted}">Distanz</div>
           </div>
-          <div style="text-align:center;background:#f4f4f5;border-radius:8px;padding:6px 4px">
-            <div style="font-weight:700;font-size:12px">${fmtTime(activity.moving_time)}</div>
-            <div style="font-size:10px;color:#888">Dauer</div>
+          <div style="text-align:center;background:${bg};border-radius:8px;padding:6px 4px">
+            <div style="font-weight:700;font-size:12px;color:${text}">${fmtTime(activity.moving_time)}</div>
+            <div style="font-size:10px;color:${muted}">Dauer</div>
           </div>
-          <div style="text-align:center;background:#f4f4f5;border-radius:8px;padding:6px 4px">
-            <div style="font-weight:700;font-size:12px">${Math.round(activity.total_elevation_gain)}m</div>
-            <div style="font-size:10px;color:#888">Höhe</div>
+          <div style="text-align:center;background:${bg};border-radius:8px;padding:6px 4px">
+            <div style="font-weight:700;font-size:12px;color:${text}">${Math.round(activity.total_elevation_gain)}m</div>
+            <div style="font-size:10px;color:${muted}">Höhe</div>
           </div>
         </div>
         ${activity.qualifying ? '<div style="margin-top:8px;font-size:10px;color:#17c964;font-weight:600">✓ Qualifiziert</div>' : ''}
@@ -267,7 +273,7 @@ export default function MapsPage() {
           <div className="absolute top-3 right-3 z-[1000] flex flex-col gap-2 items-end">
 
             {/* Main control card */}
-            <div className="bg-content1/95 backdrop-blur-sm border border-divider rounded-2xl shadow-lg overflow-hidden min-w-[200px]">
+            <div className="glass rounded-2xl overflow-hidden min-w-[200px]">
 
               {/* Fahrten anzeigen */}
               <div className="px-3 pt-2.5 pb-1.5 border-b border-divider">
@@ -327,7 +333,7 @@ export default function MapsPage() {
 
             {/* Route picker dropdown */}
             {viewMode === 'single' && showRoutePicker && qualifyingActivities.length > 0 && (
-              <div className="bg-content1/95 backdrop-blur-sm border border-divider rounded-2xl shadow-lg w-64 max-h-72 flex flex-col overflow-hidden">
+              <div className="glass rounded-2xl w-64 max-h-72 flex flex-col overflow-hidden">
                 <div className="px-3 py-2 border-b border-divider shrink-0">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-default-400">
                     {qualifyingActivities.length} qualifizierte Routen
@@ -408,7 +414,7 @@ export default function MapsPage() {
       </div>
 
       {/* ── Sidebar ──────────────────────────────────────────────────────────── */}
-      <div className={`flex flex-col border-l border-divider bg-content1 transition-all duration-200 shrink-0 ${sidebarOpen ? 'w-80' : 'w-12'}`}>
+      <div className={`flex flex-col border-l border-divider bg-content1/95 backdrop-blur-sm transition-all duration-200 shrink-0 ${sidebarOpen ? 'w-80' : 'w-12'}`}>
         <div className="flex items-center justify-between p-3 border-b border-divider shrink-0 h-14">
           {sidebarOpen && (
             <span className="font-bold text-sm tracking-tight">

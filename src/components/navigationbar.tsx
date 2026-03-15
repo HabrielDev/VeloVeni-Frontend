@@ -17,8 +17,7 @@ export default function HomePage() {
   return (
     <Navbar
       maxWidth="xl"
-      isBordered
-      className="bg-background/70 backdrop-blur-md" // Moderner Glas-Effekt
+      className="glass-nav"
       classNames={{
         wrapper: "px-6 h-16",
         item: "data-[active=true]:after:content-[''] data-[active=true]:after:absolute data-[active=true]:after:bottom-0 data-[active=true]:after:left-0 data-[active=true]:after:right-0 data-[active=true]:after:h-[2px] data-[active=true]:after:bg-primary",

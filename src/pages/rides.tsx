@@ -57,7 +57,7 @@ function ActivityCard({
   const qualifyingReason = activity.qualifying_reason ?? checkQualifying(activity).reason;
 
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card className="hover:shadow-large transition-all duration-200 hover:-translate-y-0.5">
       <CardBody className="p-4">
         {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-3">
