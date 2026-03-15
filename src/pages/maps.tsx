@@ -14,7 +14,7 @@ import { getAuthUrl } from '@/api/strava';
 import { useStrava } from '@/features/auth/strava-context';
 import type { StravaActivity } from '@/api/strava';
 import {
-  GERMANY_CENTER, GERMANY_MAP_BOUNDS,
+  GERMANY_CENTER, GERMANY_BOUNDS, GERMANY_MAP_BOUNDS,
   decodePolyline, getConqueredTiles, tilesToGeoJson,
   TILE_AREA_KM2, checkQualifying,
 } from '@/utils/geo';
@@ -50,6 +50,15 @@ type TileKey = keyof typeof TILE_LAYERS;
 type ViewMode = 'all' | 'single' | 'none';
 
 const CYCLING_TYPES = ['Ride', 'EBikeRide', 'GravelRide', 'MountainBikeRide', 'Handcycle', 'Velomobile'];
+
+// ─── Fit map to Germany on first load ────────────────────────────────────────
+function FitGermany() {
+  const map = useMap();
+  useEffect(() => {
+    map.fitBounds(L.latLngBounds(GERMANY_BOUNDS), { padding: [10, 10] });
+  }, [map]);
+  return null;
+}
 
 // ─── Fit map to route ─────────────────────────────────────────────────────────
 function FitRoute({ positions }: { positions: [number, number][] }) {
@@ -358,6 +367,8 @@ export default function MapsPage() {
           >
             <TileLayer url={tile.url} attribution={tile.attribution} />
 
+            <FitGermany />
+
             {/* Territory layer */}
             {territoriesGeoJson && (
               <GeoJSON
@@ -484,7 +495,7 @@ export default function MapsPage() {
                         {activitiesLoading && activities.length === 0 ? (
                           <div className="flex justify-center py-10"><Spinner size="sm" /></div>
                         ) : (
-                          activities.map((a) => (
+                          qualifyingActivities.map((a) => (
                             <ActivityItem
                               key={a.id} activity={a}
                               isActive={activeActivityId === a.id}

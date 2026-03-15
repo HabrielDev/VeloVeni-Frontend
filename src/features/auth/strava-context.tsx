@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { StravaToken, StravaActivity } from '@/api/strava';
 import {
   syncActivities as apiSync,
@@ -40,6 +40,16 @@ export function StravaProvider({ children }: { children: ReactNode }) {
   const [activeActivityId, setActiveActivityId] = useState<number | null>(null);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [routeLoading, setRouteLoading] = useState(false);
+
+  // Auto-load activities from DB on mount if already logged in
+  useEffect(() => {
+    if (!jwtToken) return;
+    setActivitiesLoading(true);
+    getActivities(jwtToken)
+      .then((data) => setActivities(data as StravaActivity[]))
+      .catch((e) => console.error('Auto-load failed:', e))
+      .finally(() => setActivitiesLoading(false));
+  }, [jwtToken]);
 
   const setBothTokens = (jwt: string, stravaToken: StravaToken) => {
     setJwtToken(jwt);
