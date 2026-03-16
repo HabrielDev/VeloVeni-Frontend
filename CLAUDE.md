@@ -77,6 +77,14 @@ git checkout main
 git merge feature/mein-feature
 ```
 
+## Deploy-Workflow
+
+- **Nur Gitea** wird für Entwicklung und eigene Tests verwendet.
+- **GitHub** ist ausschließlich für Production-Deploys (Railway ist mit GitHub verbunden).
+- **IMMER fragen** bevor nach GitHub gepusht wird: "Soll ich die Änderungen jetzt deployen?"
+- Deploy-Befehl (Frontend): `git push github main`
+- Deploy-Befehl (Backend): `cd ../VeloVeni-Backend && git push github main`
+
 ## Project Overview
 
 VeloVeni ist eine kompetitive Webanwendung, bei der Radfahrer durch ihre GPS-Tracks reale Gebiete auf einer Deutschlandkarte "erobern". Dieses Repository enthält ausschließlich das **Frontend**: UI, Kartenlogik und Visualisierung der Eroberungs-Mechanik.
