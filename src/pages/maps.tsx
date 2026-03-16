@@ -307,7 +307,7 @@ export default function MapsPage() {
 
   // Sidebar route filters
   const [routeSearch, setRouteSearch] = useState("");
-  const [routeTypeFilter, setRouteTypeFilter] = useState<"qualifying" | "cycling" | "all">(
+  const [routeTypeFilter, setRouteTypeFilter] = useState<"qualifying" | "cycling" | "virtual" | "all">(
     "qualifying",
   );
   const [routeSortField, setRouteSortField] = useState<"date" | "distance" | "elevation">("date");
@@ -567,6 +567,8 @@ export default function MapsPage() {
       list = list.filter((a) => a.qualifying ?? checkQualifying(a).qualifying);
     else if (routeTypeFilter === "cycling")
       list = list.filter((a) => CYCLING_TYPES.includes(a.sport_type ?? a.type));
+    else if (routeTypeFilter === "virtual")
+      list = list.filter((a) => (a.sport_type ?? a.type) === "VirtualRide");
     if (routeSearch.trim()) {
       const q = routeSearch.toLowerCase();
 
@@ -980,6 +982,7 @@ export default function MapsPage() {
                           [
                             { key: "qualifying", label: "Spielwürdig" },
                             { key: "cycling", label: "Rad" },
+                            { key: "virtual", label: "Virtuell" },
                             { key: "all", label: "Alle" },
                           ] as const
                         ).map(({ key, label }) => (

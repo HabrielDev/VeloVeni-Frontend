@@ -43,7 +43,7 @@ L.Marker.prototype.options.icon = DefaultIcon;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 // ─── Types ────────────────────────────────────────────────────────────────────
-type ActivityFilter = "all" | "qualifying";
+type ActivityFilter = "all" | "qualifying" | "virtual";
 type DatePreset = "all" | "7d" | "30d" | "3m" | "1y" | "custom";
 type SortField = "date" | "distance" | "duration" | "elevation";
 type SortDir = "desc" | "asc";
@@ -411,6 +411,8 @@ export default function RidesPage() {
     // Activity type filter
     if (activityFilter === "qualifying")
       list = list.filter((a) => a.qualifying ?? checkQualifying(a).qualifying);
+    else if (activityFilter === "virtual")
+      list = list.filter((a) => (a.sport_type ?? a.type) === "VirtualRide");
 
     // Date filter
     let range = presetToRange(datePreset);
@@ -459,6 +461,7 @@ export default function RidesPage() {
       totalElev: activities.reduce((s, a) => s + a.total_elevation_gain, 0),
       totalTime: activities.reduce((s, a) => s + a.moving_time, 0),
       qualifying: activities.filter((a) => a.qualifying ?? checkQualifying(a).qualifying).length,
+      virtual: activities.filter((a) => (a.sport_type ?? a.type) === "VirtualRide").length,
     }),
     [activities],
   );
@@ -475,6 +478,7 @@ export default function RidesPage() {
   const ACTIVITY_FILTERS: { key: ActivityFilter; label: string }[] = [
     { key: "all", label: "Alle" },
     { key: "qualifying", label: `Spielwürdig (${stats.qualifying})` },
+    { key: "virtual", label: `Virtuell (${stats.virtual})` },
   ];
 
   const SORT_OPTIONS: { field: SortField; label: string }[] = [
