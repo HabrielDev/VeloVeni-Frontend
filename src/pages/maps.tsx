@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { getAuthUrl } from '@/api/strava';
 import { useStrava } from '@/features/auth/strava-context';
-import { getAllTerritories, getTileCrossings, recalculateTerritories, getFriendsTerritories, getFriendsActivities } from '@/api/backend';
+import { getAllTerritories, getTileCrossings, recalculateTerritories, getFriendsTerritories, getFriendsActivities, getMyTerritories } from '@/api/backend';
 import type { TerritoryData, TileCrossingEntry, FriendActivity } from '@/api/backend';
 import type { StravaActivity } from '@/api/strava';
 import {
@@ -232,14 +232,21 @@ export default function MapsPage() {
 
   const reloadMapData = (jwt: string, mode: 'global' | 'friends') => {
     setAllTerritories([]);
-    const territoriesFn = mode === 'friends' ? getFriendsTerritories : getAllTerritories;
-    territoriesFn(jwt).then(setAllTerritories).catch(() => setAllTerritories([]));
-    getTileCrossings(jwt).then(setTileCrossings).catch(() => {});
     if (mode === 'friends') {
+      // Always include own territory so self-owned tiles are never misattributed
+      Promise.all([getFriendsTerritories(jwt), getMyTerritories(jwt)])
+        .then(([friendTerritories, ownTerritory]) => {
+          const merged = friendTerritories.filter((t) => t.userId !== ownTerritory.userId);
+          merged.push(ownTerritory);
+          setAllTerritories(merged);
+        })
+        .catch(() => setAllTerritories([]));
       getFriendsActivities(jwt).then(setFriendActivities).catch(() => setFriendActivities([]));
     } else {
+      getAllTerritories(jwt).then(setAllTerritories).catch(() => setAllTerritories([]));
       setFriendActivities([]);
     }
+    getTileCrossings(jwt).then(setTileCrossings).catch(() => {});
   };
 
   // Load all users' territories and crossing counts for the map
@@ -275,30 +282,82 @@ export default function MapsPage() {
     return Array.from(tiles);
   }, [allRoutes]);
 
+  // In friends mode, filter tile crossings to only include friends (+ self)
+  const effectiveTileCrossings = useMemo(() => {
+    if (zoneMode === 'global') return tileCrossings;
+    const friendIds = new Set(allTerritories.map((t) => t.userId));
+    if (backendUserId != null) friendIds.add(backendUserId);
+    const filtered: Record<string, TileCrossingEntry[]> = {};
+    for (const [key, entries] of Object.entries(tileCrossings)) {
+      const f = entries.filter((e) => friendIds.has(e.userId));
+      if (f.length > 0) filtered[key] = f;
+    }
+    return filtered;
+  }, [tileCrossings, allTerritories, zoneMode, backendUserId]);
+
+  // Build a lookup of user metadata (name + color) from allTerritories + tileCrossings
+  const userMetaMap = useMemo(() => {
+    const map: Record<number, { firstname: string; lastname: string; color: string }> = {};
+    for (const t of allTerritories) {
+      if (t.firstname) map[t.userId] = { firstname: t.firstname, lastname: t.lastname ?? '', color: t.color };
+    }
+    // Fill in any gaps from crossing data
+    for (const entries of Object.values(tileCrossings)) {
+      for (const e of entries) {
+        if (!map[e.userId]) map[e.userId] = { firstname: e.firstname, lastname: e.lastname, color: e.color };
+      }
+    }
+    return map;
+  }, [allTerritories, tileCrossings]);
+
   // Pre-compute GeoJSON per user territory — enrich features with owner name + top3 for tooltip
   const territoriesGeoJsonMap = useMemo(() => {
     if (!showTerritories) return [];
-    // Deduplicate by userId — keep entry with most tiles
-    const byUser: Record<number, TerritoryData> = {};
-    for (const t of allTerritories) {
-      if (!t.tiles?.length) continue;
-      const existing = byUser[t.userId];
-      if (!existing || t.tiles.length > existing.tiles.length) {
-        byUser[t.userId] = t;
+
+    const getOwnerName = (userId: number) => {
+      if (userId === backendUserId && token?.athlete)
+        return `${token.athlete.firstname} ${token.athlete.lastname}`;
+      const meta = userMetaMap[userId];
+      return meta?.firstname ? `${meta.firstname} ${meta.lastname}` : `User ${userId}`;
+    };
+
+    if (zoneMode === 'friends') {
+      // Start: every tile the user has personally ridden (from local GPS data) belongs to them
+      const tilesByWinner: Record<number, string[]> = {};
+      if (backendUserId != null) {
+        tilesByWinner[backendUserId] = [...allTiles];
       }
-    }
-    return Object.values(byUser)
-      .map((t) => {
-        const isOwn = t.userId === backendUserId;
-        // Deutschlandweit: own = green, others = red
-        // Freunde: own = green, each friend = their individual color
-        const displayColor = isOwn
-          ? '#FC4C02'
-          : zoneMode === 'global'
-            ? '#EF4444'
-            : t.color;
-        const ownerName = t.firstname ? `${t.firstname} ${t.lastname}` : `User ${t.userId}`;
-        const base = tilesToGeoJson(t.tiles);
+
+      // Override: for tiles where a friend has more crossings, the friend wins
+      const ownTileSet = new Set(allTiles);
+      for (const friend of allTerritories.filter((t) => t.userId !== backendUserId)) {
+        for (const tileKey of (friend.tiles ?? [])) {
+          // Only contest tiles that the user has also ridden
+          if (!ownTileSet.has(tileKey)) continue;
+          const ownCrossings = effectiveTileCrossings[tileKey]?.find((e) => e.userId === backendUserId)?.crossingCount ?? 0;
+          const friendCrossings = effectiveTileCrossings[tileKey]?.find((e) => e.userId === friend.userId)?.crossingCount ?? 0;
+          if (friendCrossings > ownCrossings) {
+            // Friend wins this tile
+            tilesByWinner[backendUserId!] = tilesByWinner[backendUserId!].filter((k) => k !== tileKey);
+            if (!tilesByWinner[friend.userId]) tilesByWinner[friend.userId] = [];
+            tilesByWinner[friend.userId].push(tileKey);
+          }
+        }
+        // Friend tiles the user hasn't ridden → friend owns them uncontested
+        for (const tileKey of (friend.tiles ?? [])) {
+          if (!ownTileSet.has(tileKey)) {
+            if (!tilesByWinner[friend.userId]) tilesByWinner[friend.userId] = [];
+            tilesByWinner[friend.userId].push(tileKey);
+          }
+        }
+      }
+
+      return Object.entries(tilesByWinner).map(([userIdStr, tiles]) => {
+        const userId = Number(userIdStr);
+        const isOwn = userId === backendUserId;
+        const displayColor = isOwn ? '#3B82F6' : (userMetaMap[userId]?.color ?? '#EF4444');
+        const ownerName = getOwnerName(userId);
+        const base = tilesToGeoJson(tiles);
         const geoJson = {
           ...base,
           features: base.features.map((f) => ({
@@ -307,13 +366,41 @@ export default function MapsPage() {
               ...f.properties,
               ownerName,
               color: displayColor,
-              top3: tileCrossings[f.properties.key] ?? [],
+              top3: effectiveTileCrossings[f.properties.key] ?? [],
             },
           })),
         };
-        return { userId: t.userId, color: displayColor, geoJson };
+        return { userId, color: displayColor, geoJson };
       });
-  }, [allTerritories, showTerritories, tileCrossings, backendUserId, zoneMode]);
+    }
+
+    // Global mode: use backend territory data
+    const byUser: Record<number, TerritoryData> = {};
+    for (const t of allTerritories) {
+      if (!t.tiles?.length) continue;
+      const existing = byUser[t.userId];
+      if (!existing || t.tiles.length > existing.tiles.length) byUser[t.userId] = t;
+    }
+    return Object.values(byUser).map((t) => {
+      const isOwn = t.userId === backendUserId;
+      const displayColor = isOwn ? '#3B82F6' : '#EF4444';
+      const ownerName = getOwnerName(t.userId);
+      const base = tilesToGeoJson(t.tiles);
+      const geoJson = {
+        ...base,
+        features: base.features.map((f) => ({
+          ...f,
+          properties: {
+            ...f.properties,
+            ownerName,
+            color: displayColor,
+            top3: effectiveTileCrossings[f.properties.key] ?? [],
+          },
+        })),
+      };
+      return { userId: t.userId, color: displayColor, geoJson };
+    });
+  }, [allTerritories, showTerritories, effectiveTileCrossings, backendUserId, zoneMode, token, userMetaMap]);
 
   const gameStats = useMemo(() => ({
     routeCount: qualifyingActivities.length,
@@ -480,8 +567,8 @@ export default function MapsPage() {
       <div className={`
         shrink-0 bg-content1/95 backdrop-blur-sm
         md:bg-transparent md:backdrop-blur-none md:p-4 md:pl-0
-        md:relative md:w-80 md:translate-x-0 md:top-auto md:bottom-auto
-        fixed right-0 top-16 bottom-14 z-[500] w-80 max-w-[85vw]
+        md:relative md:w-96 md:translate-x-0 md:top-auto md:bottom-auto
+        fixed right-0 top-16 bottom-14 z-[500] w-96 max-w-[90vw]
         transition-transform duration-200 ease-in-out
         ${mobileSidebarOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
       `}>
@@ -542,6 +629,33 @@ export default function MapsPage() {
             </div>
           )}
         </div>
+
+        {/* ── Freunde-Liste (nur im Freunde-Modus) ─────────────────────────── */}
+        {zoneMode === 'friends' && showTerritories && (
+          <div className="border-b border-divider shrink-0 px-3 py-2 flex flex-col gap-1.5">
+            <p className="text-[10px] font-bold text-default-400 uppercase tracking-wide">Aktive Freunde</p>
+            {allTerritories.filter((t) => t.userId !== backendUserId).length === 0 ? (
+              <p className="text-xs text-default-400 py-1">Keine Freunde auf VeloVeni gefunden.</p>
+            ) : (
+              allTerritories
+                .filter((t) => t.userId !== backendUserId)
+                .map((t) => (
+                  <div key={t.userId} className="flex items-center gap-2 py-1">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: t.color }}
+                    />
+                    <span className="text-xs font-medium flex-1 truncate">
+                      {t.firstname ? `${t.firstname} ${t.lastname}` : `User ${t.userId}`}
+                    </span>
+                    <span className="text-[10px] text-default-400 shrink-0">
+                      {t.tileCount} Felder · {t.areaKm2.toFixed(1)} km²
+                    </span>
+                  </div>
+                ))
+            )}
+          </div>
+        )}
 
         {/* ── Tab: Routen ──────────────────────────────────────────────────── */}
         {tab === 'routes' && (
