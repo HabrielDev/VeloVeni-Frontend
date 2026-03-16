@@ -16,12 +16,12 @@ export function isPointInGermany(lat: number, lng: number): boolean {
 
 // ─── Qualifying criteria ──────────────────────────────────────────────────────
 export const QUALIFYING_SPORT_TYPES = [
-  'Ride',
-  'EBikeRide',
-  'GravelRide',
-  'MountainBikeRide',
-  'Handcycle',
-  'Velomobile',
+  "Ride",
+  "EBikeRide",
+  "GravelRide",
+  "MountainBikeRide",
+  "Handcycle",
+  "Velomobile",
 ];
 
 export interface QualifyingResult {
@@ -36,23 +36,24 @@ export function checkQualifying(activity: {
   start_latlng: [number, number] | null;
   map?: { summary_polyline?: string };
 }): QualifyingResult {
-  const sportType = activity.sport_type ?? activity.type ?? '';
+  const sportType = activity.sport_type ?? activity.type ?? "";
 
   if (!QUALIFYING_SPORT_TYPES.includes(sportType)) {
-    return { qualifying: false, reason: 'Kein Rad-Sport' };
+    return { qualifying: false, reason: "Kein Rad-Sport" };
   }
   if (!Array.isArray(activity.start_latlng) || activity.start_latlng.length < 2) {
-    return { qualifying: false, reason: 'Kein GPS' };
+    return { qualifying: false, reason: "Kein GPS" };
   }
   if (activity.distance < 1000) {
-    return { qualifying: false, reason: 'Zu kurz (< 1 km)' };
+    return { qualifying: false, reason: "Zu kurz (< 1 km)" };
   }
   if (!isPointInGermany(activity.start_latlng[0], activity.start_latlng[1])) {
-    return { qualifying: false, reason: 'Außerhalb Deutschlands' };
+    return { qualifying: false, reason: "Außerhalb Deutschlands" };
   }
   if (!activity.map?.summary_polyline) {
-    return { qualifying: false, reason: 'Kein GPS-Track' };
+    return { qualifying: false, reason: "Kein GPS-Track" };
   }
+
   return { qualifying: true };
 }
 
@@ -67,6 +68,7 @@ export function decodePolyline(encoded: string): [number, number][] {
     let shift = 0;
     let result = 0;
     let b: number;
+
     do {
       b = encoded.charCodeAt(index++) - 63;
       result |= (b & 0x1f) << shift;
@@ -85,6 +87,7 @@ export function decodePolyline(encoded: string): [number, number][] {
 
     points.push([lat / 1e5, lng / 1e5]);
   }
+
   return points;
 }
 
@@ -97,11 +100,13 @@ export const TILE_AREA_KM2 = TILE_STEP * 111 * TILE_STEP * 73;
 export function latLngToTileKey(lat: number, lng: number): string {
   const tLat = (Math.floor(lat / TILE_STEP) * TILE_STEP).toFixed(2);
   const tLng = (Math.floor(lng / TILE_STEP) * TILE_STEP).toFixed(2);
+
   return `${tLat},${tLng}`;
 }
 
 export function tileKeyToBounds(key: string): [[number, number], [number, number]] {
-  const [lat, lng] = key.split(',').map(Number);
+  const [lat, lng] = key.split(",").map(Number);
+
   return [
     [lat, lng],
     [lat + TILE_STEP, lng + TILE_STEP],
@@ -110,25 +115,28 @@ export function tileKeyToBounds(key: string): [[number, number], [number, number
 
 export function getConqueredTiles(points: [number, number][]): Set<string> {
   const tiles = new Set<string>();
+
   for (const [lat, lng] of points) {
     if (isPointInGermany(lat, lng)) {
       tiles.add(latLngToTileKey(lat, lng));
     }
   }
+
   return tiles;
 }
 
 // ─── Territory GeoJSON builder ────────────────────────────────────────────────
 export function tilesToGeoJson(tiles: string[]) {
   return {
-    type: 'FeatureCollection' as const,
+    type: "FeatureCollection" as const,
     features: tiles.map((key) => {
       const [[lat1, lng1], [lat2, lng2]] = tileKeyToBounds(key);
+
       return {
-        type: 'Feature' as const,
+        type: "Feature" as const,
         properties: { key },
         geometry: {
-          type: 'Polygon' as const,
+          type: "Polygon" as const,
           coordinates: [
             [
               [lng1, lat1],

@@ -35,9 +35,10 @@ export function getAuthUrl(): string {
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
     redirect_uri: redirectUri,
-    response_type: 'code',
-    scope: 'activity:read_all',
-    approval_prompt: 'auto',
+    response_type: "code",
+    scope: "activity:read_all",
+    approval_prompt: "auto",
   });
+
   return `https://www.strava.com/oauth/authorize?${params}`;
 }

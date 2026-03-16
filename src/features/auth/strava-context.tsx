@@ -1,15 +1,11 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { StravaToken, StravaActivity } from '@/api/strava';
-import {
-  syncActivities as apiSync,
-  getActivities,
-  getActivityRoute,
-  getMe,
-} from '@/api/backend';
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+
+import { StravaToken, StravaActivity } from "@/api/strava";
+import { syncActivities as apiSync, getActivities, getActivityRoute, getMe } from "@/api/backend";
 
 interface StravaContextType {
   jwtToken: string | null;
-  token: StravaToken | null;  // athlete display info
+  token: StravaToken | null; // athlete display info
   backendUserId: number | null;
   activities: StravaActivity[];
   activeRoute: [number, number][];
@@ -26,12 +22,11 @@ interface StravaContextType {
 const StravaCtx = createContext<StravaContextType | null>(null);
 
 export function StravaProvider({ children }: { children: ReactNode }) {
-  const [jwtToken, setJwtToken] = useState<string | null>(
-    () => localStorage.getItem('jwt_token'),
-  );
+  const [jwtToken, setJwtToken] = useState<string | null>(() => localStorage.getItem("jwt_token"));
   const [token, setTokenState] = useState<StravaToken | null>(() => {
     try {
-      const s = localStorage.getItem('strava_token');
+      const s = localStorage.getItem("strava_token");
+
       return s ? JSON.parse(s) : null;
     } catch {
       return null;
@@ -46,8 +41,14 @@ export function StravaProvider({ children }: { children: ReactNode }) {
 
   // Resolve backend user ID once per session
   useEffect(() => {
-    if (!jwtToken) { setBackendUserId(null); return; }
-    getMe(jwtToken).then((me) => setBackendUserId(me.id)).catch(() => {});
+    if (!jwtToken) {
+      setBackendUserId(null);
+
+      return;
+    }
+    getMe(jwtToken)
+      .then((me) => setBackendUserId(me.id))
+      .catch(() => {});
   }, [jwtToken]);
 
   // Auto-load activities from DB on mount if already logged in
@@ -56,15 +57,15 @@ export function StravaProvider({ children }: { children: ReactNode }) {
     setActivitiesLoading(true);
     getActivities(jwtToken)
       .then((data) => setActivities(data as StravaActivity[]))
-      .catch((e) => console.error('Auto-load failed:', e))
+      .catch((e) => console.error("Auto-load failed:", e))
       .finally(() => setActivitiesLoading(false));
   }, [jwtToken]);
 
   const setBothTokens = (jwt: string, stravaToken: StravaToken) => {
     setJwtToken(jwt);
     setTokenState(stravaToken);
-    localStorage.setItem('jwt_token', jwt);
-    localStorage.setItem('strava_token', JSON.stringify(stravaToken));
+    localStorage.setItem("jwt_token", jwt);
+    localStorage.setItem("strava_token", JSON.stringify(stravaToken));
   };
 
   const loadActivities = async () => {
@@ -72,9 +73,10 @@ export function StravaProvider({ children }: { children: ReactNode }) {
     setActivitiesLoading(true);
     try {
       const data = await getActivities(jwtToken);
+
       setActivities(data as StravaActivity[]);
     } catch (e) {
-      console.error('Failed to load activities:', e);
+      console.error("Failed to load activities:", e);
     } finally {
       setActivitiesLoading(false);
     }
@@ -87,7 +89,7 @@ export function StravaProvider({ children }: { children: ReactNode }) {
       await apiSync(jwtToken);
       await loadActivities();
     } catch (e) {
-      console.error('Sync failed:', e);
+      console.error("Sync failed:", e);
     } finally {
       setActivitiesLoading(false);
     }
@@ -98,16 +100,18 @@ export function StravaProvider({ children }: { children: ReactNode }) {
     if (activeActivityId === id) {
       setActiveRoute([]);
       setActiveActivityId(null);
+
       return;
     }
     setRouteLoading(true);
     setActiveActivityId(id);
     try {
       const positions = await getActivityRoute(jwtToken, id);
+
       setActiveRoute(positions);
       if (positions.length === 0) setActiveActivityId(null);
     } catch (e) {
-      console.error('Failed to load route:', e);
+      console.error("Failed to load route:", e);
       setActiveRoute([]);
       setActiveActivityId(null);
     } finally {
@@ -121,8 +125,8 @@ export function StravaProvider({ children }: { children: ReactNode }) {
     setActivities([]);
     setActiveRoute([]);
     setActiveActivityId(null);
-    localStorage.removeItem('jwt_token');
-    localStorage.removeItem('strava_token');
+    localStorage.removeItem("jwt_token");
+    localStorage.removeItem("strava_token");
   };
 
   return (
@@ -150,6 +154,8 @@ export function StravaProvider({ children }: { children: ReactNode }) {
 
 export function useStrava() {
   const ctx = useContext(StravaCtx);
-  if (!ctx) throw new Error('useStrava must be used within StravaProvider');
+
+  if (!ctx) throw new Error("useStrava must be used within StravaProvider");
+
   return ctx;
 }

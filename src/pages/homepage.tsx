@@ -1,4 +1,3 @@
-
 import NavigationBar from "@/components/navigationbar";
 
 export default function HomePage() {

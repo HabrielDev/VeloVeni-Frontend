@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
-import { Button } from '@heroui/react';
-import { ShieldCheck } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { Button } from "@heroui/react";
+import { ShieldCheck } from "lucide-react";
 
-const CONSENT_KEY = 'vv-consent-v1';
+const CONSENT_KEY = "vv-consent-v1";
 
 export default function ConsentBanner() {
   const [visible, setVisible] = useState(false);
@@ -12,7 +12,7 @@ export default function ConsentBanner() {
   }, []);
 
   const accept = () => {
-    localStorage.setItem(CONSENT_KEY, 'accepted');
+    localStorage.setItem(CONSENT_KEY, "accepted");
     setVisible(false);
   };
 
@@ -22,19 +22,19 @@ export default function ConsentBanner() {
     <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[9999] w-full max-w-xl px-4">
       <div className="glass rounded-2xl p-4 shadow-large">
         <div className="flex gap-3 items-start">
-          <ShieldCheck size={20} className="text-primary shrink-0 mt-0.5" />
+          <ShieldCheck className="text-primary shrink-0 mt-0.5" size={20} />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold mb-1">Datenschutz & Datenverarbeitung</p>
             <p className="text-xs text-default-500 leading-relaxed">
-              VeloVeni speichert deinen Namen, Profilbild und GPS-Streckendaten von Strava,
-              um das Spiel zu betreiben. Daten werden auf EU-Servern gespeichert.
-              Du kannst deinen Account und alle Daten jederzeit in den Einstellungen löschen
-              (DSGVO Art. 17). Mit „Akzeptieren" stimmst du der Verarbeitung zu.
+              VeloVeni speichert deinen Namen, Profilbild und GPS-Streckendaten von Strava, um das
+              Spiel zu betreiben. Daten werden auf EU-Servern gespeichert. Du kannst deinen Account
+              und alle Daten jederzeit in den Einstellungen löschen (DSGVO Art. 17). Mit
+              „Akzeptieren" stimmst du der Verarbeitung zu.
             </p>
           </div>
         </div>
         <div className="flex gap-2 mt-3 justify-end">
-          <Button size="sm" color="primary" onPress={accept}>
+          <Button color="primary" size="sm" onPress={accept}>
             Akzeptieren
           </Button>
         </div>

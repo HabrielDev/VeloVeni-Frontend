@@ -1,9 +1,11 @@
-import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Spinner } from '@heroui/react';
-import { stravaCallback } from '@/api/backend';
-import { useStrava } from '@/features/auth/strava-context';
-import type { StravaToken } from '@/api/strava';
+import type { StravaToken } from "@/api/strava";
+
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Spinner } from "@heroui/react";
+
+import { stravaCallback } from "@/api/backend";
+import { useStrava } from "@/features/auth/strava-context";
 
 export default function StravaCallback() {
   const { setBothTokens } = useStrava();
@@ -11,11 +13,12 @@ export default function StravaCallback() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-    const error = params.get('error');
+    const code = params.get("code");
+    const error = params.get("error");
 
     if (error || !code) {
-      navigate('/maps');
+      navigate("/maps");
+
       return;
     }
 
@@ -27,15 +30,16 @@ export default function StravaCallback() {
           expires_at: data.strava_expires_at,
           athlete: data.athlete,
         };
+
         setBothTokens(data.access_token, stravaToken);
-        navigate('/maps');
+        navigate("/maps");
       })
-      .catch(() => navigate('/maps'));
+      .catch(() => navigate("/maps"));
   }, []);
 
   return (
     <div className="flex h-[calc(100vh-64px)] items-center justify-center">
-      <Spinner size="lg" label="Verbinde mit Strava..." />
+      <Spinner label="Verbinde mit Strava..." size="lg" />
     </div>
   );
 }

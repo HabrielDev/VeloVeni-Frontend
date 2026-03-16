@@ -1,19 +1,21 @@
-import { useEffect, useState } from 'react';
-import { Avatar, Card, CardBody, Chip, Spinner } from '@heroui/react';
-import { Trophy, Map, Route, Ruler, Globe, Users } from 'lucide-react';
-import { useStrava } from '@/features/auth/strava-context';
-import { getLeaderboard, getFriendsLeaderboard } from '@/api/backend';
-import type { LeaderboardEntry } from '@/api/backend';
-import { getAuthUrl } from '@/api/strava';
-import { Button } from '@heroui/react';
+import type { LeaderboardEntry } from "@/api/backend";
 
-type LeaderboardMode = 'global' | 'friends';
+import { useEffect, useState } from "react";
+import { Avatar, Card, CardBody, Chip, Spinner } from "@heroui/react";
+import { Trophy, Map, Route, Ruler, Globe, Users } from "lucide-react";
+import { Button } from "@heroui/react";
 
-const MEDAL: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' };
+import { useStrava } from "@/features/auth/strava-context";
+import { getLeaderboard, getFriendsLeaderboard } from "@/api/backend";
+import { getAuthUrl } from "@/api/strava";
+
+type LeaderboardMode = "global" | "friends";
+
+const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
 export default function LeaderboardPage() {
   const { jwtToken, token } = useStrava();
-  const [mode, setMode] = useState<LeaderboardMode>('global');
+  const [mode, setMode] = useState<LeaderboardMode>("global");
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,10 +25,11 @@ export default function LeaderboardPage() {
     setLoading(true);
     setError(null);
     setEntries([]);
-    const fetch = mode === 'friends' ? getFriendsLeaderboard : getLeaderboard;
+    const fetch = mode === "friends" ? getFriendsLeaderboard : getLeaderboard;
+
     fetch(jwtToken)
       .then(setEntries)
-      .catch(() => setError('Leaderboard konnte nicht geladen werden.'))
+      .catch(() => setError("Leaderboard konnte nicht geladen werden."))
       .finally(() => setLoading(false));
   }, [jwtToken, mode]);
 
@@ -42,7 +45,12 @@ export default function LeaderboardPage() {
             Verbinde deinen Strava-Account, um das Leaderboard zu sehen.
           </p>
         </div>
-        <Button as="a" href={getAuthUrl()} size="lg" className="bg-[#FC4C02] text-white font-semibold px-8">
+        <Button
+          as="a"
+          className="bg-[#FC4C02] text-white font-semibold px-8"
+          href={getAuthUrl()}
+          size="lg"
+        >
           Mit Strava verbinden
         </Button>
       </div>
@@ -63,20 +71,23 @@ export default function LeaderboardPage() {
 
         {/* Mode toggle */}
         <div className="flex items-center gap-1 p-1 rounded-xl bg-content2 border border-divider">
-          {([
-            { key: 'global',  label: 'Deutschlandweit', icon: <Globe size={14} /> },
-            { key: 'friends', label: 'Freunde',          icon: <Users size={14} /> },
-          ] as const).map(({ key, label, icon }) => (
+          {(
+            [
+              { key: "global", label: "Deutschlandweit", icon: <Globe size={14} /> },
+              { key: "friends", label: "Freunde", icon: <Users size={14} /> },
+            ] as const
+          ).map(({ key, label, icon }) => (
             <button
               key={key}
-              onClick={() => setMode(key)}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                 mode === key
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-default-500 hover:text-default-700'
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-default-500 hover:text-default-700"
               }`}
+              onClick={() => setMode(key)}
             >
-              {icon}{label}
+              {icon}
+              {label}
             </button>
           ))}
         </div>
@@ -84,7 +95,7 @@ export default function LeaderboardPage() {
 
       {loading && (
         <div className="flex justify-center py-16">
-          <Spinner size="lg" label="Lade Rangliste..." />
+          <Spinner label="Lade Rangliste..." size="lg" />
         </div>
       )}
 
@@ -97,11 +108,17 @@ export default function LeaderboardPage() {
       {!loading && !error && entries.length === 0 && (
         <Card>
           <CardBody className="p-10 text-center flex flex-col items-center gap-3">
-            {mode === 'friends' ? <Users size={36} className="text-default-300" /> : <Trophy size={36} className="text-default-300" />}
+            {mode === "friends" ? (
+              <Users className="text-default-300" size={36} />
+            ) : (
+              <Trophy className="text-default-300" size={36} />
+            )}
             <p className="text-sm font-medium">
-              {mode === 'friends' ? 'Keine Strava-Freunde bei VeloVeni' : 'Noch keine Einträge vorhanden.'}
+              {mode === "friends"
+                ? "Keine Strava-Freunde bei VeloVeni"
+                : "Noch keine Einträge vorhanden."}
             </p>
-            {mode === 'friends' && (
+            {mode === "friends" && (
               <p className="text-xs text-default-400 max-w-xs">
                 Nur Strava-Freunde, die ebenfalls VeloVeni nutzen, erscheinen hier.
               </p>
@@ -118,18 +135,25 @@ export default function LeaderboardPage() {
               {[entries[1], entries[0], entries[2]].map((e, i) => {
                 const order = [2, 1, 3][i];
                 const isMe = e.userId === myStravaId;
+
                 return (
-                  <Card key={e.userId} className={`${isMe ? 'ring-2 ring-primary' : ''}`}>
-                    <CardBody className={`p-4 flex flex-col items-center gap-2 text-center ${order === 1 ? 'pt-6' : 'pt-4'}`}>
+                  <Card key={e.userId} className={`${isMe ? "ring-2 ring-primary" : ""}`}>
+                    <CardBody
+                      className={`p-4 flex flex-col items-center gap-2 text-center ${order === 1 ? "pt-6" : "pt-4"}`}
+                    >
                       <span className="text-2xl">{MEDAL[order]}</span>
-                      <Avatar src={e.profilePicture} name={e.firstname} className="w-12 h-12" />
+                      <Avatar className="w-12 h-12" name={e.firstname} src={e.profilePicture} />
                       <div>
                         <p className="text-sm font-semibold truncate max-w-[100px]">
                           {e.firstname} {e.lastname.charAt(0)}.
                         </p>
                         <p className="text-xs text-default-400 mt-0.5">{e.tileCount} Felder</p>
                       </div>
-                      {isMe && <Chip size="sm" color="primary" variant="flat">Du</Chip>}
+                      {isMe && (
+                        <Chip color="primary" size="sm" variant="flat">
+                          Du
+                        </Chip>
+                      )}
                     </CardBody>
                   </Card>
                 );
@@ -142,11 +166,12 @@ export default function LeaderboardPage() {
             <CardBody className="p-0">
               {entries.map((e, idx) => {
                 const isMe = e.userId === myStravaId;
+
                 return (
                   <div
                     key={e.userId}
                     className={`flex items-center gap-3 px-4 py-3 border-b border-divider last:border-0 transition-colors ${
-                      isMe ? 'bg-primary/5' : idx % 2 === 0 ? '' : 'bg-content2/40'
+                      isMe ? "bg-primary/5" : idx % 2 === 0 ? "" : "bg-content2/40"
                     }`}
                   >
                     {/* Rank */}
@@ -159,24 +184,34 @@ export default function LeaderboardPage() {
                     </div>
 
                     {/* Avatar + name */}
-                    <Avatar src={e.profilePicture} name={e.firstname} size="sm" className="shrink-0" />
+                    <Avatar
+                      className="shrink-0"
+                      name={e.firstname}
+                      size="sm"
+                      src={e.profilePicture}
+                    />
                     <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-semibold truncate ${isMe ? 'text-primary' : ''}`}>
+                      <p className={`text-sm font-semibold truncate ${isMe ? "text-primary" : ""}`}>
                         {e.firstname} {e.lastname}
-                        {isMe && <span className="ml-1.5 text-xs font-normal text-primary/70">(Du)</span>}
+                        {isMe && (
+                          <span className="ml-1.5 text-xs font-normal text-primary/70">(Du)</span>
+                        )}
                       </p>
                     </div>
 
                     {/* Stats */}
                     <div className="hidden sm:flex items-center gap-4 text-xs text-default-500 shrink-0">
                       <span className="flex items-center gap-1">
-                        <Map size={12} />{e.tileCount} Felder
+                        <Map size={12} />
+                        {e.tileCount} Felder
                       </span>
                       <span className="flex items-center gap-1">
-                        <Ruler size={12} />{e.areaKm2.toFixed(0)} km²
+                        <Ruler size={12} />
+                        {e.areaKm2.toFixed(0)} km²
                       </span>
                       <span className="flex items-center gap-1">
-                        <Route size={12} />{e.routeCount} Routen
+                        <Route size={12} />
+                        {e.routeCount} Routen
                       </span>
                     </div>
                     <div className="sm:hidden text-right shrink-0">
