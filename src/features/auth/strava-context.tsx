@@ -36,10 +36,10 @@ interface StravaContextType {
 const StravaCtx = createContext<StravaContextType | null>(null);
 
 export function StravaProvider({ children }: { children: ReactNode }) {
-  const [jwtToken, setJwtToken] = useState<string | null>(() => localStorage.getItem("jwt_token"));
+  const [jwtToken, setJwtToken] = useState<string | null>(() => sessionStorage.getItem("jwt_token"));
   const [token, setTokenState] = useState<StravaToken | null>(() => {
     try {
-      const s = localStorage.getItem("strava_token");
+      const s = sessionStorage.getItem("strava_token");
 
       return s ? JSON.parse(s) : null;
     } catch {
@@ -78,8 +78,8 @@ export function StravaProvider({ children }: { children: ReactNode }) {
   const setBothTokens = (jwt: string, stravaToken: StravaToken) => {
     setJwtToken(jwt);
     setTokenState(stravaToken);
-    localStorage.setItem("jwt_token", jwt);
-    localStorage.setItem("strava_token", JSON.stringify(stravaToken));
+    sessionStorage.setItem("jwt_token", jwt);
+    sessionStorage.setItem("strava_token", JSON.stringify(stravaToken));
   };
 
   const loadActivities = async () => {
@@ -139,8 +139,8 @@ export function StravaProvider({ children }: { children: ReactNode }) {
     setActivities([]);
     setActiveRoute([]);
     setActiveActivityId(null);
-    localStorage.removeItem("jwt_token");
-    localStorage.removeItem("strava_token");
+    sessionStorage.removeItem("jwt_token");
+    sessionStorage.removeItem("strava_token");
   };
 
   return (
