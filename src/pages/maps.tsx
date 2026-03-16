@@ -88,6 +88,7 @@ type ViewMode = "all" | "single" | "none";
 const CYCLING_TYPES = [
   "Ride",
   "EBikeRide",
+  "VirtualRide",
   "GravelRide",
   "MountainBikeRide",
   "Handcycle",
@@ -306,9 +307,9 @@ export default function MapsPage() {
 
   // Sidebar route filters
   const [routeSearch, setRouteSearch] = useState("");
-  const [routeTypeFilter, setRouteTypeFilter] = useState<
-    "qualifying" | "cycling" | "running" | "all"
-  >("qualifying");
+  const [routeTypeFilter, setRouteTypeFilter] = useState<"qualifying" | "cycling" | "all">(
+    "qualifying",
+  );
   const [routeSortField, setRouteSortField] = useState<"date" | "distance" | "elevation">("date");
   const [routeSortDir, setRouteSortDir] = useState<"desc" | "asc">("desc");
   const [allTerritories, setAllTerritories] = useState<TerritoryData[]>([]);
@@ -559,7 +560,6 @@ export default function MapsPage() {
   );
 
   // Sidebar-filtered activity list (applies search + type + sort)
-  const RUN_TYPES = ["Run", "VirtualRun", "TrailRun"];
   const sidebarFilteredActivities = useMemo(() => {
     let list = activities.filter((a) => a.map?.summary_polyline);
 
@@ -567,8 +567,6 @@ export default function MapsPage() {
       list = list.filter((a) => a.qualifying ?? checkQualifying(a).qualifying);
     else if (routeTypeFilter === "cycling")
       list = list.filter((a) => CYCLING_TYPES.includes(a.sport_type ?? a.type));
-    else if (routeTypeFilter === "running")
-      list = list.filter((a) => RUN_TYPES.includes(a.sport_type ?? a.type));
     if (routeSearch.trim()) {
       const q = routeSearch.toLowerCase();
 
@@ -982,7 +980,6 @@ export default function MapsPage() {
                           [
                             { key: "qualifying", label: "Spielwürdig" },
                             { key: "cycling", label: "Rad" },
-                            { key: "running", label: "Lauf" },
                             { key: "all", label: "Alle" },
                           ] as const
                         ).map(({ key, label }) => (
@@ -1035,6 +1032,20 @@ export default function MapsPage() {
                           </button>
                         ))}
                       </div>
+
+                      {/* Reset */}
+                      <button
+                        className={`w-full py-1 rounded-lg text-[10px] font-semibold transition-colors ${routeTypeFilter !== "qualifying" || routeSearch || routeSortField !== "date" || routeSortDir !== "desc" ? "bg-danger/10 text-danger hover:bg-danger/20" : "bg-content1 text-default-300 cursor-default"}`}
+                        disabled={routeTypeFilter === "qualifying" && !routeSearch && routeSortField === "date" && routeSortDir === "desc"}
+                        onClick={() => {
+                          setRouteTypeFilter("qualifying");
+                          setRouteSearch("");
+                          setRouteSortField("date");
+                          setRouteSortDir("desc");
+                        }}
+                      >
+                        Filter zurücksetzen
+                      </button>
                     </div>
                   )}
 

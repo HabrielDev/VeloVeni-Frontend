@@ -42,19 +42,8 @@ const DefaultIcon = L.icon({
 L.Marker.prototype.options.icon = DefaultIcon;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const CYCLING_TYPES = [
-  "Ride",
-  "EBikeRide",
-  "VirtualRide",
-  "GravelRide",
-  "MountainBikeRide",
-  "Handcycle",
-  "Velomobile",
-];
-const RUN_TYPES = ["Run", "VirtualRun", "TrailRun"];
-
 // ─── Types ────────────────────────────────────────────────────────────────────
-type ActivityFilter = "all" | "qualifying" | "cycling" | "running" | "other";
+type ActivityFilter = "all" | "qualifying";
 type DatePreset = "all" | "7d" | "30d" | "3m" | "1y" | "custom";
 type SortField = "date" | "distance" | "duration" | "elevation";
 type SortDir = "desc" | "asc";
@@ -85,14 +74,6 @@ const fmtPace = (distM: number, timeS: number) => {
   return `${min}:${sec.toString().padStart(2, "0")} min/km`;
 };
 
-function getActivityCategory(a: StravaActivity): Exclude<ActivityFilter, "all" | "qualifying"> {
-  const t = a.sport_type ?? a.type;
-
-  if (CYCLING_TYPES.includes(t)) return "cycling";
-  if (RUN_TYPES.includes(t)) return "running";
-
-  return "other";
-}
 
 function presetToRange(preset: DatePreset): { from: Date; to: Date } | null {
   if (preset === "all" || preset === "custom") return null;
@@ -122,14 +103,13 @@ function FitRoute({ positions }: { positions: [number, number][] }) {
 
 // ─── Activity detail modal ─────────────────────────────────────────────────────
 function ActivityModal({ activity, onClose }: { activity: StravaActivity; onClose: () => void }) {
-  const category = getActivityCategory(activity);
   const qualifying = activity.qualifying ?? checkQualifying(activity).qualifying;
   const hasPolyline = !!activity.map?.summary_polyline;
   const positions = useMemo(
     () => (hasPolyline ? decodePolyline(activity.map.summary_polyline) : []),
     [activity],
   );
-  const isCycling = category === "cycling";
+  const isCycling = true;
 
   // Close on backdrop click
   const handleBackdrop = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -308,9 +288,8 @@ function ActivityModal({ activity, onClose }: { activity: StravaActivity; onClos
 
 // ─── Activity card ─────────────────────────────────────────────────────────────
 function ActivityCard({ activity, onClick }: { activity: StravaActivity; onClick: () => void }) {
-  const category = getActivityCategory(activity);
   const qualifying = activity.qualifying ?? checkQualifying(activity).qualifying;
-  const isCycling = category === "cycling";
+  const isCycling = true;
 
   return (
     <Card
@@ -432,8 +411,6 @@ export default function RidesPage() {
     // Activity type filter
     if (activityFilter === "qualifying")
       list = list.filter((a) => a.qualifying ?? checkQualifying(a).qualifying);
-    else if (activityFilter !== "all")
-      list = list.filter((a) => getActivityCategory(a) === activityFilter);
 
     // Date filter
     let range = presetToRange(datePreset);
@@ -477,7 +454,7 @@ export default function RidesPage() {
   // Summary stats (across all activities, not filtered)
   const stats = useMemo(
     () => ({
-      cycling: activities.filter((a) => getActivityCategory(a) === "cycling").length,
+      cycling: activities.length,
       totalDist: activities.reduce((s, a) => s + a.distance, 0),
       totalElev: activities.reduce((s, a) => s + a.total_elevation_gain, 0),
       totalTime: activities.reduce((s, a) => s + a.moving_time, 0),
@@ -498,9 +475,6 @@ export default function RidesPage() {
   const ACTIVITY_FILTERS: { key: ActivityFilter; label: string }[] = [
     { key: "all", label: "Alle" },
     { key: "qualifying", label: `Spielwürdig (${stats.qualifying})` },
-    { key: "cycling", label: "Radfahren" },
-    { key: "running", label: "Laufen" },
-    { key: "other", label: "Sonstiges" },
   ];
 
   const SORT_OPTIONS: { field: SortField; label: string }[] = [
@@ -728,20 +702,19 @@ export default function RidesPage() {
             <p className="text-xs text-default-400">
               {filtered.length} von {activities.length} Aktivitäten
             </p>
-            {(activityFilter !== "all" || datePreset !== "all") && (
-              <button
-                className="text-xs text-primary hover:underline"
-                onClick={() => {
-                  setActivityFilter("all");
-                  setDatePreset("all");
-                  setShowDateCustom(false);
-                  setCustomFrom("");
-                  setCustomTo("");
-                }}
-              >
-                Filter zurücksetzen
-              </button>
-            )}
+            <button
+              className={`text-xs transition-colors ${activityFilter !== "all" || datePreset !== "all" ? "text-primary hover:underline" : "text-default-300 cursor-default"}`}
+              disabled={activityFilter === "all" && datePreset === "all"}
+              onClick={() => {
+                setActivityFilter("all");
+                setDatePreset("all");
+                setShowDateCustom(false);
+                setCustomFrom("");
+                setCustomTo("");
+              }}
+            >
+              Filter zurücksetzen
+            </button>
           </div>
 
           {/* Activity grid */}

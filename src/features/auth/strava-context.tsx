@@ -3,6 +3,20 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { StravaToken, StravaActivity } from "@/api/strava";
 import { syncActivities as apiSync, getActivities, getActivityRoute, getMe } from "@/api/backend";
 
+const CYCLING_TYPES = [
+  "Ride",
+  "EBikeRide",
+  "VirtualRide",
+  "GravelRide",
+  "MountainBikeRide",
+  "Handcycle",
+  "Velomobile",
+];
+
+function isCyclingActivity(a: StravaActivity): boolean {
+  return CYCLING_TYPES.includes(a.sport_type ?? a.type);
+}
+
 interface StravaContextType {
   jwtToken: string | null;
   token: StravaToken | null; // athlete display info
@@ -56,7 +70,7 @@ export function StravaProvider({ children }: { children: ReactNode }) {
     if (!jwtToken) return;
     setActivitiesLoading(true);
     getActivities(jwtToken)
-      .then((data) => setActivities(data as StravaActivity[]))
+      .then((data) => setActivities((data as StravaActivity[]).filter(isCyclingActivity)))
       .catch((e) => console.error("Auto-load failed:", e))
       .finally(() => setActivitiesLoading(false));
   }, [jwtToken]);
@@ -74,7 +88,7 @@ export function StravaProvider({ children }: { children: ReactNode }) {
     try {
       const data = await getActivities(jwtToken);
 
-      setActivities(data as StravaActivity[]);
+      setActivities((data as StravaActivity[]).filter(isCyclingActivity));
     } catch (e) {
       console.error("Failed to load activities:", e);
     } finally {
