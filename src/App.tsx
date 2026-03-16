@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { ThemeProvider } from '@/features/theme/theme-context';
 import { StravaProvider } from '@/features/auth/strava-context';
 import NavigationBar from '@/components/navigationbar';
@@ -17,6 +17,7 @@ function App() {
         <ConsentBanner />
         <main className="pb-14 md:pb-0">
           <Routes>
+            <Route path="/" element={<Navigate to="/maps" replace />} />
             <Route element={<MapsPage />} path="/maps" />
             <Route element={<RidesPage />} path="/rides" />
             <Route element={<ProfilePage />} path="/profile" />
