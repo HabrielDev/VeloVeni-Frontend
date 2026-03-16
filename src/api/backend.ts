@@ -1,9 +1,17 @@
 const API_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:3000";
 
+if (
+  import.meta.env.PROD &&
+  API_URL.startsWith("http://") &&
+  !API_URL.startsWith("http://localhost")
+) {
+  console.warn("[security] API_URL uses plaintext HTTP in production — switch to HTTPS");
+}
+
 export interface BackendAuthResponse {
   access_token: string; // JWT for backend API
   strava_access_token: string;
-  strava_refresh_token: string;
+  // strava_refresh_token is intentionally NOT sent to the client — kept server-side only
   strava_expires_at: number;
   athlete: {
     id: number;

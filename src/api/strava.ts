@@ -2,7 +2,6 @@ const CLIENT_ID = import.meta.env.VITE_STRAVA_CLIENT_ID as string;
 
 export interface StravaToken {
   access_token: string;
-  refresh_token: string;
   expires_at: number;
   athlete: StravaAthlete;
 }

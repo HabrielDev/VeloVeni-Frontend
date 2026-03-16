@@ -129,8 +129,8 @@ export default function ProfilePage() {
       a.download = "veloveni-export.json";
       a.click();
       URL.revokeObjectURL(url);
-    } catch (e) {
-      console.error(e);
+    } catch {
+      console.error("Export failed");
     } finally {
       setExporting(false);
     }
@@ -148,8 +148,8 @@ export default function ProfilePage() {
     try {
       await deleteAccount(jwtToken);
       disconnect();
-    } catch (e) {
-      console.error(e);
+    } catch {
+      console.error("Delete failed");
       setDeleting(false);
     }
   };

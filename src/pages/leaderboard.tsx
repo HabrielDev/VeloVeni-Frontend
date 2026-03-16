@@ -14,7 +14,7 @@ type LeaderboardMode = "global" | "friends";
 const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
 export default function LeaderboardPage() {
-  const { jwtToken, token } = useStrava();
+  const { jwtToken, backendUserId } = useStrava();
   const [mode, setMode] = useState<LeaderboardMode>("global");
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -56,8 +56,6 @@ export default function LeaderboardPage() {
       </div>
     );
   }
-
-  const myStravaId = token?.athlete.id;
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 flex flex-col gap-6">
@@ -134,7 +132,7 @@ export default function LeaderboardPage() {
             <div className="grid grid-cols-3 gap-3">
               {[entries[1], entries[0], entries[2]].map((e, i) => {
                 const order = [2, 1, 3][i];
-                const isMe = e.userId === myStravaId;
+                const isMe = e.userId === backendUserId;
 
                 return (
                   <Card key={e.userId} className={`${isMe ? "ring-2 ring-primary" : ""}`}>
@@ -165,7 +163,7 @@ export default function LeaderboardPage() {
           <Card>
             <CardBody className="p-0">
               {entries.map((e, idx) => {
-                const isMe = e.userId === myStravaId;
+                const isMe = e.userId === backendUserId;
 
                 return (
                   <div

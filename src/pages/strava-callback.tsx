@@ -26,7 +26,6 @@ export default function StravaCallback() {
       .then((data) => {
         const stravaToken: StravaToken = {
           access_token: data.strava_access_token,
-          refresh_token: data.strava_refresh_token,
           expires_at: data.strava_expires_at,
           athlete: data.athlete,
         };

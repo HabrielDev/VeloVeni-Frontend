@@ -71,7 +71,7 @@ export function StravaProvider({ children }: { children: ReactNode }) {
     setActivitiesLoading(true);
     getActivities(jwtToken)
       .then((data) => setActivities((data as StravaActivity[]).filter(isCyclingActivity)))
-      .catch((e) => console.error("Auto-load failed:", e))
+      .catch(() => console.error("Auto-load failed"))
       .finally(() => setActivitiesLoading(false));
   }, [jwtToken]);
 
@@ -89,8 +89,8 @@ export function StravaProvider({ children }: { children: ReactNode }) {
       const data = await getActivities(jwtToken);
 
       setActivities((data as StravaActivity[]).filter(isCyclingActivity));
-    } catch (e) {
-      console.error("Failed to load activities:", e);
+    } catch {
+      console.error("Failed to load activities");
     } finally {
       setActivitiesLoading(false);
     }
@@ -102,8 +102,8 @@ export function StravaProvider({ children }: { children: ReactNode }) {
     try {
       await apiSync(jwtToken);
       await loadActivities();
-    } catch (e) {
-      console.error("Sync failed:", e);
+    } catch {
+      console.error("Sync failed");
     } finally {
       setActivitiesLoading(false);
     }
@@ -124,8 +124,8 @@ export function StravaProvider({ children }: { children: ReactNode }) {
 
       setActiveRoute(positions);
       if (positions.length === 0) setActiveActivityId(null);
-    } catch (e) {
-      console.error("Failed to load route:", e);
+    } catch {
+      console.error("Failed to load route");
       setActiveRoute([]);
       setActiveActivityId(null);
     } finally {
