@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { animate, stagger } from "animejs";
 import { MapContainer, TileLayer, Polyline, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -396,6 +397,11 @@ export default function RidesPage() {
   // Detail modal
   const [selectedActivity, setSelectedActivity] = useState<StravaActivity | null>(null);
 
+  // Animation refs
+  const statsRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const prevFilterKey = useRef<string>("");
+
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
     else {
@@ -465,6 +471,40 @@ export default function RidesPage() {
     }),
     [activities],
   );
+
+  // Animate stat cards when activities first load
+  useEffect(() => {
+    if (!statsRef.current || !activities.length) return;
+    const cards = statsRef.current.querySelectorAll<HTMLElement>(":scope > *");
+
+    animate(cards, {
+      translateY: { from: "20px", to: "0px" },
+      opacity: { from: 0, to: 1 },
+      scale: { from: 0.95, to: 1 },
+      delay: stagger(80),
+      duration: 500,
+      easing: "easeOutCubic",
+    });
+  }, [activities.length > 0]);
+
+  // Animate activity grid on filter change
+  useEffect(() => {
+    if (!gridRef.current || !filtered.length) return;
+    const filterKey = `${activityFilter}-${datePreset}-${sortField}-${sortDir}`;
+
+    if (filterKey === prevFilterKey.current) return;
+    prevFilterKey.current = filterKey;
+
+    const cards = gridRef.current.querySelectorAll<HTMLElement>(":scope > *");
+
+    animate(cards, {
+      translateY: { from: "16px", to: "0px" },
+      opacity: { from: 0, to: 1 },
+      delay: stagger(40, { start: 0 }),
+      duration: 380,
+      easing: "easeOutCubic",
+    });
+  }, [filtered]);
 
   const DATE_PRESETS: { key: DatePreset; label: string }[] = [
     { key: "all", label: "Alle Zeit" },
@@ -560,7 +600,7 @@ export default function RidesPage() {
       {activities.length > 0 && (
         <>
           {/* Summary stats */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+          <div ref={statsRef} className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
             {[
               {
                 icon: <Bike size={18} />,
@@ -728,7 +768,7 @@ export default function RidesPage() {
               <p className="text-sm">Keine Aktivitäten für diese Filtereinstellungen</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div ref={gridRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filtered.map((a) => (
                 <ActivityCard key={a.id} activity={a} onClick={() => setSelectedActivity(a)} />
               ))}

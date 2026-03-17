@@ -1,6 +1,7 @@
 import type { PrivacySettings } from "@/api/backend";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { animate, stagger } from "animejs";
 import { Avatar, Button, Card, CardBody, Chip, Divider, Spinner, Switch } from "@heroui/react";
 import {
   Bike,
@@ -40,6 +41,51 @@ function fmtDuration(s: number) {
   return h > 0 ? `${h}h ${min}min` : `${min}min`;
 }
 
+function ProfileStatCard({
+  value,
+  label,
+  color,
+  bg,
+  numericValue,
+}: {
+  value: string | number;
+  label: string;
+  color: string;
+  bg: string;
+  numericValue?: number;
+}) {
+  const spanRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!spanRef.current || numericValue === undefined || numericValue === 0) return;
+    const obj = { v: 0 };
+
+    animate(obj, {
+      v: numericValue,
+      duration: 1300,
+      easing: "easeOutExpo",
+      onUpdate: () => {
+        if (spanRef.current) spanRef.current.textContent = Math.round(obj.v).toString();
+      },
+    });
+  }, [numericValue]);
+
+  return (
+    <Card>
+      <CardBody className={`p-4 text-center ${bg}`}>
+        <p className={`text-2xl font-bold ${color}`}>
+          {numericValue !== undefined ? (
+            <span ref={spanRef}>{value}</span>
+          ) : (
+            value
+          )}
+        </p>
+        <p className="text-xs text-default-400 mt-0.5">{label}</p>
+      </CardBody>
+    </Card>
+  );
+}
+
 export default function ProfilePage() {
   const { jwtToken, token, activities, activitiesLoading, syncActivities, disconnect } =
     useStrava();
@@ -53,6 +99,7 @@ export default function ProfilePage() {
     try { localStorage.setItem("vv-profile-hint-v1", "seen"); } catch { /* ignore */ }
   };
 
+  const gameStatsRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [privacy, setPrivacy] = useState<PrivacySettings>({ shareZones: true, shareRides: false });
@@ -82,6 +129,21 @@ export default function ProfilePage() {
       .then(setPrivacy)
       .catch(() => {});
   }, [jwtToken]);
+
+  // Animate game stat cards on first data load
+  useEffect(() => {
+    if (!gameStatsRef.current || !activities.length) return;
+    const cards = gameStatsRef.current.querySelectorAll<HTMLElement>(":scope > *");
+
+    animate(cards, {
+      translateY: { from: "24px", to: "0px" },
+      opacity: { from: 0, to: 1 },
+      scale: { from: 0.92, to: 1 },
+      delay: stagger(100),
+      duration: 550,
+      easing: "spring(1, 80, 10, 0)",
+    });
+  }, [activities.length > 0]);
 
   const stats = useMemo(
     () => ({
@@ -240,40 +302,33 @@ export default function ProfilePage() {
               <h2 className="text-sm font-bold uppercase tracking-wider text-default-400 mb-3 flex items-center gap-2">
                 <Trophy size={14} /> Spielstatistiken
               </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {[
-                  {
-                    value: stats.qualifyingCount,
-                    label: "Qualif. Routen",
-                    color: "text-[#FC4C02]",
-                    bg: "bg-[#FC4C02]/10",
-                  },
-                  {
-                    value: stats.uniqueTiles,
-                    label: "Felder",
-                    color: "text-success",
-                    bg: "bg-success/10",
-                  },
-                  {
-                    value: `${stats.areaKm2.toFixed(0)} km²`,
-                    label: "Fläche",
-                    color: "text-secondary",
-                    bg: "bg-secondary/10",
-                  },
-                  {
-                    value: `${stats.totalDistanceKm.toFixed(0)} km`,
-                    label: "Gesamtstrecke",
-                    color: "text-primary",
-                    bg: "bg-primary/10",
-                  },
-                ].map(({ value, label, color, bg }) => (
-                  <Card key={label}>
-                    <CardBody className={`p-4 text-center ${bg}`}>
-                      <p className={`text-2xl font-bold ${color}`}>{value}</p>
-                      <p className="text-xs text-default-400 mt-0.5">{label}</p>
-                    </CardBody>
-                  </Card>
-                ))}
+              <div ref={gameStatsRef} className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <ProfileStatCard
+                  bg="bg-[#FC4C02]/10"
+                  color="text-[#FC4C02]"
+                  label="Qualif. Routen"
+                  numericValue={stats.qualifyingCount}
+                  value={stats.qualifyingCount}
+                />
+                <ProfileStatCard
+                  bg="bg-success/10"
+                  color="text-success"
+                  label="Felder"
+                  numericValue={stats.uniqueTiles}
+                  value={stats.uniqueTiles}
+                />
+                <ProfileStatCard
+                  bg="bg-secondary/10"
+                  color="text-secondary"
+                  label="Fläche"
+                  value={`${stats.areaKm2.toFixed(0)} km²`}
+                />
+                <ProfileStatCard
+                  bg="bg-primary/10"
+                  color="text-primary"
+                  label="Gesamtstrecke"
+                  value={`${stats.totalDistanceKm.toFixed(0)} km`}
+                />
               </div>
             </div>
 

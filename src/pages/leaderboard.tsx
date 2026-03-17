@@ -1,9 +1,10 @@
 import type { LeaderboardEntry } from "@/api/backend";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Avatar, Card, CardBody, Chip, Spinner } from "@heroui/react";
 import { Trophy, Map, Route, Ruler, Globe, Users } from "lucide-react";
 import { Button } from "@heroui/react";
+import { animate, stagger } from "animejs";
 
 import { useStrava } from "@/features/auth/strava-context";
 import { getLeaderboard, getFriendsLeaderboard } from "@/api/backend";
@@ -13,12 +14,65 @@ type LeaderboardMode = "global" | "friends";
 
 const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
+function PodiumCard({
+  entry,
+  isMe,
+  order,
+}: {
+  entry: LeaderboardEntry;
+  isMe: boolean;
+  order: number;
+}) {
+  const countRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!countRef.current || !entry.tileCount) return;
+    const obj = { v: 0 };
+
+    animate(obj, {
+      v: entry.tileCount,
+      duration: 1400,
+      delay: (order === 1 ? 0 : order === 2 ? 130 : 260),
+      easing: "easeOutExpo",
+      onUpdate: () => {
+        if (countRef.current) countRef.current.textContent = Math.round(obj.v).toString();
+      },
+    });
+  }, [entry.tileCount, order]);
+
+  return (
+    <Card className={`podium-card ${isMe ? "ring-2 ring-primary" : ""}`}>
+      <CardBody
+        className={`p-4 flex flex-col items-center gap-2 text-center ${order === 1 ? "pt-6" : "pt-4"}`}
+      >
+        <span className="text-2xl">{MEDAL[order]}</span>
+        <Avatar className="w-12 h-12" name={entry.firstname} src={entry.profilePicture} />
+        <div>
+          <p className="text-sm font-semibold truncate max-w-[100px]">
+            {entry.firstname} {entry.lastname.charAt(0)}.
+          </p>
+          <p className="text-xs text-default-400 mt-0.5">
+            <span ref={countRef}>{entry.tileCount}</span> Felder
+          </p>
+        </div>
+        {isMe && (
+          <Chip color="primary" size="sm" variant="flat">
+            Du
+          </Chip>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
 export default function LeaderboardPage() {
   const { jwtToken, backendUserId } = useStrava();
   const [mode, setMode] = useState<LeaderboardMode>("global");
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const podiumRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!jwtToken) return;
@@ -32,6 +86,36 @@ export default function LeaderboardPage() {
       .catch(() => setError("Leaderboard konnte nicht geladen werden."))
       .finally(() => setLoading(false));
   }, [jwtToken, mode]);
+
+  // Animate podium + list when entries arrive
+  useEffect(() => {
+    if (!entries.length) return;
+
+    // Podium cards: staggered spring bounce from below
+    if (podiumRef.current) {
+      const cards = podiumRef.current.querySelectorAll<HTMLElement>(".podium-card");
+      animate(cards, {
+        translateY: { from: "50px", to: "0px" },
+        opacity: { from: 0, to: 1 },
+        scale: { from: 0.88, to: 1 },
+        delay: stagger(130),
+        duration: 700,
+        easing: "spring(1, 80, 10, 0)",
+      });
+    }
+
+    // Full list: staggered slide in from right
+    if (listRef.current) {
+      const rows = listRef.current.querySelectorAll<HTMLElement>(".list-row");
+      animate(rows, {
+        translateX: { from: "30px", to: "0px" },
+        opacity: { from: 0, to: 1 },
+        delay: stagger(35),
+        duration: 420,
+        easing: "easeOutCubic",
+      });
+    }
+  }, [entries]);
 
   if (!jwtToken) {
     return (
@@ -129,31 +213,18 @@ export default function LeaderboardPage() {
         <>
           {/* Top 3 podium */}
           {entries.length >= 3 && (
-            <div className="grid grid-cols-3 gap-3">
+            <div ref={podiumRef} className="grid grid-cols-3 gap-3">
               {[entries[1], entries[0], entries[2]].map((e, i) => {
                 const order = [2, 1, 3][i];
                 const isMe = e.userId === backendUserId;
 
                 return (
-                  <Card key={e.userId} className={`${isMe ? "ring-2 ring-primary" : ""}`}>
-                    <CardBody
-                      className={`p-4 flex flex-col items-center gap-2 text-center ${order === 1 ? "pt-6" : "pt-4"}`}
-                    >
-                      <span className="text-2xl">{MEDAL[order]}</span>
-                      <Avatar className="w-12 h-12" name={e.firstname} src={e.profilePicture} />
-                      <div>
-                        <p className="text-sm font-semibold truncate max-w-[100px]">
-                          {e.firstname} {e.lastname.charAt(0)}.
-                        </p>
-                        <p className="text-xs text-default-400 mt-0.5">{e.tileCount} Felder</p>
-                      </div>
-                      {isMe && (
-                        <Chip color="primary" size="sm" variant="flat">
-                          Du
-                        </Chip>
-                      )}
-                    </CardBody>
-                  </Card>
+                  <PodiumCard
+                    key={e.userId}
+                    entry={e}
+                    isMe={isMe}
+                    order={order}
+                  />
                 );
               })}
             </div>
@@ -162,13 +233,14 @@ export default function LeaderboardPage() {
           {/* Full ranked list */}
           <Card>
             <CardBody className="p-0">
+              <div ref={listRef}>
               {entries.map((e, idx) => {
                 const isMe = e.userId === backendUserId;
 
                 return (
                   <div
                     key={e.userId}
-                    className={`flex items-center gap-3 px-4 py-3 border-b border-divider last:border-0 transition-colors ${
+                    className={`list-row flex items-center gap-3 px-4 py-3 border-b border-divider last:border-0 transition-colors ${
                       isMe ? "bg-primary/5" : idx % 2 === 0 ? "" : "bg-content2/40"
                     }`}
                   >
@@ -219,6 +291,7 @@ export default function LeaderboardPage() {
                   </div>
                 );
               })}
+              </div>
             </CardBody>
           </Card>
         </>
